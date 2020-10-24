@@ -19,7 +19,7 @@ PAGE_READWRITE				= 0x00000004
 NULL						= 0x00
 STATUS_SUCCESS				= 0x00
 
-#constants - I'm not even sure what these do
+#Windows API Function Defs + Extras
 ntdll.NtAllocateVirtualMemory.argtypes = [c_ulonglong, POINTER(c_ulonglong), c_ulonglong, POINTER(c_ulonglong), c_ulonglong, c_ulonglong]
 kernel32.WriteProcessMemory.argtypes = [c_ulonglong, c_ulonglong, c_char_p, c_ulonglong, POINTER(c_ulonglong)]
 kernel32.DeviceIoControl.argtypes = [c_void_p, c_ulong, c_void_p, c_ulong, c_void_p, c_ulong, POINTER(c_ulong),c_void_p]
