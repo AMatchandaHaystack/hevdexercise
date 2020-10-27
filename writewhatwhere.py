@@ -14,7 +14,9 @@ ntdll = windll.ntdll
 kernel32 = windll.kernel32
 gdi32 = windll.gdi32
 user32 = windll.user32
-
+kernel32.LoadLibraryA.restype = c_uint64
+kernel32.GetProcAddress.argtypes = [c_uint64, POINTER(c_char)]
+kernel32.GetProcAddress.restype = c_uint64
 GENERIC_READ = 0x80000000
 GENERIC_WRITE = 0x40000000
 OPEN_EXISTING = 3
