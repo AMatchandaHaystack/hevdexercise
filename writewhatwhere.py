@@ -268,7 +268,7 @@ def readPrimitive(driver, what_addr, where):
     read_value = cast(user_addr, POINTER(c_ulonglong))[0]
     print "What the fuck is this read value? " + str(read_value)
 
-
+    read_value = c_ulong()
     return triggerIOCTL
     return read_value
 
