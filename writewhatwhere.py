@@ -405,10 +405,12 @@ MAIN Got System Process Base, Getting System Token!
 Value before DeviceIoControl: fffff802157eafa0
 Value after: fffff802157eafa0
 What the fuck is this read value? 18446735286567088032
+Read value is FFFFF802157EAFA0
 MAIN Got System Token, Getting Current Process Base!
 Value before DeviceIoControl: fffff802157eb288
 Value after: fffff802157eb288
 What the fuck is this read value? 18446735286567088776
+Read_value in hex is FFFFF802157EB288
 Traceback (most recent call last):
   File "sploit.py", line 387, in <module>
     executeOverwrite()
