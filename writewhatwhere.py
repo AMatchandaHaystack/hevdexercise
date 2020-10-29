@@ -78,7 +78,6 @@ ntdll.NtQueryInformationThread.argtypes = [c_void_p, c_ulonglong,
 
 STATUS_SUCCESS = 0
 written = c_size_t()
-read = c_size_t()
 
 dwStatus = ntdll.NtAllocateVirtualMemory(
     CURRENT_PROCESS_HANDLE,
