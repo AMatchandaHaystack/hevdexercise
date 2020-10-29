@@ -32,7 +32,7 @@ PAGE_EXECUTE_READWRITE = 0x00000040
 PAGE_READWRITE = 0x00000004
 ThreadBasicInformation = 0
 
-################################################### ADDRESSES FOR MSDN ######################################################
+################################################### SPECIAL ADDRESSES ######################################################
 
 USER_ADDR = 0x000000001a000000
 WHAT_ADDR = 0x000000001a001000 # Arbitrary offset inside BASEADDRESS 
