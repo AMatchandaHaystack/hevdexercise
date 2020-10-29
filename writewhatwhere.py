@@ -277,7 +277,7 @@ def get_current_eprocess(system_process_base_pointer, driver):
     """ Returns ptr to Current EPROCESS structure """
     PID_OFFSET = 0x2e0
     PROC_FLINK_OFFSET = 0x2e8
-    TOKEN_OFFSE = 0x358
+    TOKEN_OFFSET = 0x358
 
     flink = readPrimitive(driver, system_process_base_pointer + PROC_FLINK_OFFSET, user_addr)
     print hex(flink)
